@@ -17,8 +17,8 @@
 <meta name="msapplication-tap-highlight" content="no">
 
 <!-- ══ PWA ICONS (SVG inline vía data URI) ══ -->
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23c0392b'/><text y='.9em' font-size='75' x='12'>📚</text></svg>">
-<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23c0392b'/><text y='.9em' font-size='75' x='12'>📚</text></svg>">
+<link rel="icon" type="image/jpeg" href="logo.jpeg">
+<link rel="apple-touch-icon" href="logo.jpeg">
 
 <!-- ══ PWA MANIFEST (inyectado vía Blob) ══ -->
 <script>
@@ -158,7 +158,7 @@ function instalarApp() {
 <!-- ══ FIREBASE ══ -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged }
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, doc, addDoc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, Timestamp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -178,7 +178,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // ══ Exponer al scope global ══
-window._fb = { auth, db, collection, doc, addDoc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
+window._fb = { auth, db, collection, doc, addDoc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously };
 window._fbReady = true;
 document.dispatchEvent(new Event('fbready'));
 </script>
@@ -462,7 +462,7 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
 <div id="loginScreen">
   <div class="login-card">
     <div class="login-logo">
-      <div class="login-logo-icon">📚</div>
+      <div class="login-logo-icon"><img src="logo.jpeg" style="width:52px;height:52px;object-fit:cover;border-radius:10px;"></div>
       <h1 style="font-size:14px;line-height:1.3;">IE N.° 0148<br><span style="font-size:11px;font-weight:500;">MAESTRO VÍCTOR RAÚL HAYA DE LA TORRE</span></h1>
       <p style="font-size:10px;color:var(--texto-suave);margin-top:4px;">Sistema AsistenciaQR — Firebase</p>
     </div>
@@ -492,7 +492,7 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
 <div class="layout" id="appLayout" style="display:none;">
   <aside class="sidebar" id="sidebar">
     <div class="logo">
-      <div class="logo-icon">📚</div>
+      <div class="logo-icon"><img src="logo.jpeg" style="width:100%;height:100%;object-fit:cover;border-radius:9px;"></div>
       <div>
         <div class="logo-text">IE N.° 0148</div>
         <div class="logo-sub">MVRHLT</div>
@@ -1032,10 +1032,34 @@ async function hacerLoginPadre() {
   const err = document.getElementById('loginErr');
   err.style.display = 'none';
   if (!/^\d{8}$/.test(dni)) { err.textContent='⚠️ Ingresa un DNI válido de 8 dígitos'; err.style.display='block'; return; }
-  sesion = { uid:'padre_'+dni, nombre:'Apoderado', rol:'padre', grados:[], secciones:[], dni };
-  entrarApp();
-  irPanel('padre');
-  setTimeout(() => { document.getElementById('padreInputDNI').value = dni; consultarPadre(); }, 200);
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = '⏳ Verificando…';
+  try {
+    // Autenticar anónimamente para tener permisos de lectura en Firestore
+    if (!FB.auth.currentUser) { await FB.signInAnonymously(FB.auth); }
+    const todos = await fsGetAll('estudiantes');
+    const hijos = todos.filter(e => {
+      const d = (e.dniPadre||e.dni||e.dniApoderado||'').toString().trim();
+      return d === dni;
+    });
+    if (!hijos.length) {
+      err.textContent = '❌ No se encontraron estudiantes con ese DNI. Consulta al administrador.';
+      err.style.display = 'block';
+      btn.disabled = false; btn.textContent = '🔐 Ingresar';
+      return;
+    }
+    sesion = { uid:'padre_'+dni, nombre:'Apoderado', rol:'padre', grados:[], secciones:[], dni };
+    entrarApp();
+    irPanel('padre');
+    document.getElementById('padreLoginDiv').style.display = 'none';
+    document.getElementById('padreInfoDiv').classList.remove('hide');
+    document.getElementById('padreApodInfo').innerHTML = '<strong>👪 DNI ' + dni + '</strong> — ' + hijos.length + ' hijo(s) registrado(s)';
+    await renderHijosInfo(hijos);
+  } catch(e) {
+    err.textContent = '❌ Error: ' + e.message;
+    err.style.display = 'block';
+    btn.disabled = false; btn.textContent = '🔐 Ingresar';
+  }
 }
 
 function entrarApp() {
@@ -1434,7 +1458,11 @@ async function buscarPorDNI() {
   const dni=document.getElementById('dniBusq').value.trim();
   const c=document.getElementById('resDNI');
   if(!/^\d{8}$/.test(dni)){notif('❌ DNI debe tener 8 dígitos','error');return;}
-  const hijos=await fsQuery('estudiantes',FB.where('dniPadre','==',dni));
+  const todos=await fsGetAll('estudiantes');
+  const hijos=todos.filter(e=>{
+    const d=(e.dniPadre||e.dni||e.dniApoderado||'').toString().trim();
+    return d===dni;
+  });
   if(!hijos.length){c.innerHTML='<div style="font-size:12px;color:var(--rojo);background:#fdf2f0;padding:8px;border-radius:8px;">❌ Sin estudiantes con ese DNI</div>';return;}
   const fecha=getFecha();
   const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
@@ -1455,12 +1483,19 @@ async function buscarPorDNI() {
 async function consultarPadre() {
   const dni=document.getElementById('padreInputDNI').value.trim();
   if(!/^\d{8}$/.test(dni)){notif('❌ DNI debe tener 8 dígitos','error');return;}
-  const hijos=await fsQuery('estudiantes',FB.where('dniPadre','==',dni));
-  if(!hijos.length){notif('❌ No se encontraron estudiantes con ese DNI','error');return;}
+  try {
+    if (!FB.auth.currentUser) { await FB.signInAnonymously(FB.auth); }
+    const todos=await fsGetAll('estudiantes');
+    const hijos=todos.filter(e=>{
+      const d=(e.dniPadre||e.dni||e.dniApoderado||'').toString().trim();
+      return d===dni;
+    });
+    if(!hijos.length){notif('❌ No se encontraron estudiantes con ese DNI','error');return;}
   document.getElementById('padreLoginDiv').style.display='none';
   document.getElementById('padreInfoDiv').classList.remove('hide');
-  document.getElementById('padreApodInfo').innerHTML=`<strong>👪 Apoderado: DNI ${dni}</strong>${hijos.length} hijo(s) registrado(s)`;
+  document.getElementById('padreApodInfo').innerHTML=`<strong>👪 Apoderado: DNI ${dni}</strong> — ${hijos.length} hijo(s) registrado(s)`;
   await renderHijosInfo(hijos);
+  } catch(e) { notif('❌ Error de conexión: '+e.message,'error'); }
 }
 
 async function renderHijosInfo(hijos) {
