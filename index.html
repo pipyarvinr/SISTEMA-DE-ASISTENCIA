@@ -1733,9 +1733,6 @@ async function renderHijosInfo(hijos) {
     let estadoHtml='',botones='';
     if(pres){
       estadoHtml='<span class="badge badge-green" style="font-size:12px;padding:5px 14px;">✅ ASISTIÓ hoy</span>';
-    }else if(ausenteReg){
-      estadoHtml=`<div style="background:#fdf2f0;border:2px solid var(--rojo);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.6em;margin-bottom:4px;">🚨</div><div style="font-weight:700;color:var(--rojo);font-size:14px;">AUSENTE HOY</div><div style="font-size:12px;color:#7a4f4f;margin-top:4px;">La institución registró su ausencia el día de hoy.</div></div>`;
-      if(!justifHoy) botones=`<button class="btn btn-orange" style="margin-top:10px;width:100%;justify-content:center;" onclick="abrirJustif('${h.id}')">📝 Justificar inasistencia</button>`;
     }else if(justifHoy){
       const labels={enfermedad:'🤒 Enfermedad',cita:'🏥 Cita médica',familiar:'👨‍👩‍👧 Motivo familiar',otro:'📝 Otro',alerta:'🚨 ALERTA enviada'};
       const esAprobado=justifHoy.estado==='aprobado';
@@ -1753,7 +1750,10 @@ async function renderHijosInfo(hijos) {
           </button>
           ${!boletaVencida && venceEn ? `<div style="font-size:10px;color:#7b241c;background:#fdf0ef;border-radius:6px;padding:5px 10px;margin-top:6px;text-align:center;">⏰ Válida hasta: ${venceEn.toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'})} ${venceEn.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
         ` : ''}
-      `;    }else{
+      `;    }else if(ausenteReg){
+      estadoHtml=`<div style="background:#fdf2f0;border:2px solid var(--rojo);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.6em;margin-bottom:4px;">🚨</div><div style="font-weight:700;color:var(--rojo);font-size:14px;">AUSENTE HOY</div><div style="font-size:12px;color:#7a4f4f;margin-top:4px;">La institución registró su ausencia el día de hoy.</div></div>`;
+      botones=`<button class="btn btn-orange" style="margin-top:10px;width:100%;justify-content:center;" onclick="abrirJustif('${h.id}')">📝 Justificar inasistencia</button>`;
+    }else{
       estadoHtml='<span class="badge badge-red" style="font-size:12px;padding:5px 14px;">❌ NO asistió hoy</span>';
       botones=`<button class="btn btn-orange" style="margin-top:10px;width:100%;justify-content:center;" onclick="abrirJustif('${h.id}')">📝 Justificar inasistencia</button>`;
     }
