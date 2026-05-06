@@ -175,11 +175,12 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
+const db   = getFirestore(app);
 
-// ══ Exponer al scope global ══
+// Exponer al scope global
 window._fb = { auth, db, collection, doc, addDoc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously };
 window._fbReady = true;
+// Usar DOMContentLoaded para garantizar que los listeners del script principal ya estén registrados
 document.dispatchEvent(new Event('fbready'));
 </script>
 
@@ -537,7 +538,7 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
         <div class="progress-label" id="progressLabel">Sin sesión activa</div>
       </div>
       <div class="timer-actions">
-        <button class="btn btn-success" onclick="iniciarSesion()">▶ Iniciar (30 min)</button>
+        <button class="btn btn-success" onclick="iniciarSesion()">▶ Iniciar (1 pm – 2 pm)</button>
         <button class="btn btn-danger" onclick="finalizarSesion()">■ Finalizar</button>
       </div>
     </div>
@@ -886,25 +887,35 @@ let _estudiantesCache = [];
 let _asistenciaHoyCache = [];
 let _justificacionesCache = [];
 
-// ══════════════════════════════════════════════════════
-// ESPERAR FIREBASE
-// ══════════════════════════════════════════════════════
-let _ignorarAuthChange = false; // bandera para bloquear listener durante setup
+// [MEJORA 2+5] Mapa de listeners activos de onSnapshot para cancelarlos al cerrar sesión
+let _listeners = {};
 
-document.addEventListener('fbready', async () => {
+function _cancelarListeners() {
+  Object.values(_listeners).forEach(unsub => { try { unsub(); } catch(e) {} });
+  _listeners = {};
+}
+
+// ══════════════════════════════════════════════════════
+// ESPERAR FIREBASE — polling robusto, inmune a race conditions
+// ══════════════════════════════════════════════════════
+let _ignorarAuthChange = false;
+
+function _iniciarApp() {
   FB = window._fb;
 
-  // Mostrar login inmediatamente — sin esperar red
+  // Mostrar login INMEDIATAMENTE
   document.getElementById('splashScreen').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
 
-  // Ahora sí escuchar cambios de auth
+  // Crear admin inicial en segundo plano
+  crearAdminInicial().catch(e => console.warn('crearAdminInicial bg:', e));
+
+  // Escuchar cambios de auth (auto-login si había sesión activa)
   FB.onAuthStateChanged(FB.auth, async (user) => {
-    if (_ignorarAuthChange) return; // ignorar durante creación de usuarios
+    if (_ignorarAuthChange) return;
     if (user && sesion === null) {
-      // Auto-login si quedó sesión activa (recarga de página)
       try {
-        const snap = await FB.getDoc(FB.doc(FB.db,'usuarios', user.uid));
+        const snap = await FB.getDoc(FB.doc(FB.db, 'usuarios', user.uid));
         if (snap.exists()) {
           sesion = { uid: user.uid, email: user.email, ...snap.data() };
           entrarApp();
@@ -916,15 +927,28 @@ document.addEventListener('fbready', async () => {
       }
     }
   });
-});
+}
 
+// Intentar inmediatamente (por si el módulo ya cargó) y luego cada 50ms
+(function esperarFB() {
+  if (window._fbReady && window._fb) {
+    _iniciarApp();
+  } else {
+    setTimeout(esperarFB, 50);
+  }
+})();
+
+// Fallback duro: si en 4 s no cargó Firebase (sin internet, CDN bloqueado, etc.)
 setTimeout(() => {
   const splash = document.getElementById('splashScreen');
   if (splash && splash.style.display !== 'none') {
     splash.style.display = 'none';
-    document.getElementById('loginScreen').style.display = 'flex';
+    const ls = document.getElementById('loginScreen');
+    if (ls) { ls.style.display = 'flex'; }
+    const err = document.getElementById('loginErr');
+    if (err) { err.textContent = '⚠️ Sin conexión a Firebase. Verifica tu internet.'; err.style.display = 'block'; }
   }
-}, 3000);
+}, 4000);
 
 // ══════════════════════════════════════════════════════
 // ADMIN INICIAL (se crea la primera vez, silenciosamente)
@@ -1007,6 +1031,10 @@ async function hacerLogin() {
   btn.disabled = true; btn.textContent = '⏳ Ingresando…';
 
   try {
+    // [MEJORA 7] Cerrar cualquier sesión activa previa para evitar conflictos
+    if (FB.auth.currentUser) {
+      await FB.signOut(FB.auth);
+    }
     // Iniciar sesión en Firebase Auth
     const cred = await FB.signInWithEmailAndPassword(FB.auth, email, pass);
     // Cargar perfil desde Firestore directamente (no esperar onAuthStateChanged)
@@ -1037,19 +1065,48 @@ async function hacerLoginPadre() {
   const btn = document.getElementById('loginBtn');
   btn.disabled = true; btn.textContent = '⏳ Verificando…';
   try {
-    // Autenticar anónimamente para tener permisos de lectura en Firestore
-    if (!FB.auth.currentUser) { await FB.signInAnonymously(FB.auth); }
-    const todos = await fsGetAll('estudiantes');
+    // [MEJORA 7] Cerrar sesión activa previa antes de autenticar como anónimo
+    if (FB.auth.currentUser) {
+      await FB.signOut(FB.auth);
+    }
+    await FB.signInAnonymously(FB.auth);
+
+    // [MEJORA 6] Si caché está vacía, leer directamente de Firestore
+    let todos = _estudiantesCache.length ? _estudiantesCache : null;
+    if (!todos) {
+      try {
+        todos = await fsGetAll('estudiantes');
+        _estudiantesCache = todos;
+      } catch(fsErr) {
+        err.textContent = '❌ Error al conectar con Firestore. Verifica tu conexión.';
+        err.style.display = 'block';
+        btn.disabled = false; btn.textContent = '🔐 Ingresar';
+        return;
+      }
+    }
+
     const hijos = todos.filter(e => {
       const d = (e.dniPadre||e.dni||e.dniApoderado||'').toString().trim();
       return d === dni;
     });
+
+    // [MEJORA 6] Si no hay resultados en caché, intentar consulta directa a Firestore por si caché desactualizada
     if (!hijos.length) {
-      err.textContent = '❌ No se encontraron estudiantes con ese DNI. Consulta al administrador.';
-      err.style.display = 'block';
-      btn.disabled = false; btn.textContent = '🔐 Ingresar';
-      return;
+      const todosDirecto = await fsGetAll('estudiantes');
+      _estudiantesCache = todosDirecto;
+      const hijosDirecto = todosDirecto.filter(e => {
+        const d = (e.dniPadre||e.dni||e.dniApoderado||'').toString().trim();
+        return d === dni;
+      });
+      if (!hijosDirecto.length) {
+        err.textContent = '❌ No se encontraron estudiantes con ese DNI. Consulta al administrador.';
+        err.style.display = 'block';
+        btn.disabled = false; btn.textContent = '🔐 Ingresar';
+        return;
+      }
+      hijos.push(...hijosDirecto);
     }
+
     sesion = { uid:'padre_'+dni, nombre:'Apoderado', rol:'padre', grados:[], secciones:[], dni };
     entrarApp();
     irPanel('padre');
@@ -1100,6 +1157,12 @@ function entrarApp() {
   actualizarStats();
   renderAlertasBadge();
 
+  // [MEJORA 2] Activar listeners onSnapshot para reactividad en tiempo real
+  _activarListeners();
+
+  // [MEJORA 3] Procesar cola offline si hay registros pendientes y hay conexión
+  if (navigator.onLine) setTimeout(_procesarColaOffline, 2000);
+
   if (sesion.rol === 'admin') irPanel('admin');
   else if (sesion.rol === 'padre') irPanel('padre');
   else irPanel('asistencia');
@@ -1109,6 +1172,8 @@ async function cerrarSesion() {
   ventanaActiva = false;
   if (temporizador) { clearInterval(temporizador); temporizador=null; }
   detenerCamara();
+  // [MEJORA 5] Cancelar todos los listeners de onSnapshot antes de salir
+  _cancelarListeners();
   sesion = null;
   _estudiantesCache = []; _asistenciaHoyCache = []; _justificacionesCache = [];
   document.getElementById('appLayout').style.display = 'none';
@@ -1116,6 +1181,104 @@ async function cerrarSesion() {
   try { await FB.signOut(FB.auth); } catch(e) {}
   document.getElementById('loginScreen').style.display = 'flex';
 }
+
+// ══════════════════════════════════════════════════════
+// [MEJORA 2] LISTENERS TIEMPO REAL (onSnapshot)
+// ══════════════════════════════════════════════════════
+function _activarListeners() {
+  _cancelarListeners(); // limpiar anteriores si los hay
+
+  // Listener: estudiantes
+  _listeners.estudiantes = FB.onSnapshot(
+    FB.collection(FB.db, 'estudiantes'),
+    (snap) => {
+      _estudiantesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Refrescar UI si el panel está visible
+      const panelAdmin = document.getElementById('panel_admin');
+      const panelAsist = document.getElementById('panel_asistencia');
+      if (panelAdmin && !panelAdmin.classList.contains('hide')) {
+        renderEstudiantes();
+        actualizarStats();
+      }
+      if (panelAsist && !panelAsist.classList.contains('hide')) {
+        renderListaAsistencia();
+      }
+    },
+    (err) => console.warn('onSnapshot estudiantes:', err)
+  );
+
+  // Listener: asistencia del día actual
+  const fecha = getFecha();
+  const qAsist = FB.query(FB.collection(FB.db, 'asistencia'), FB.where('fecha', '==', fecha));
+  _listeners.asistencia = FB.onSnapshot(
+    qAsist,
+    (snap) => {
+      _asistenciaHoyCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      actualizarStats();
+      const panelAsist = document.getElementById('panel_asistencia');
+      if (panelAsist && !panelAsist.classList.contains('hide')) {
+        renderListaAsistencia();
+        cargarTablaAsistencia();
+      }
+    },
+    (err) => console.warn('onSnapshot asistencia:', err)
+  );
+
+  // Listener: justificaciones pendientes/alerta (para badge y panel)
+  const qJustif = FB.query(FB.collection(FB.db, 'justificaciones'));
+  _listeners.justificaciones = FB.onSnapshot(
+    qJustif,
+    (snap) => {
+      _justificacionesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      renderAlertasBadge();
+      const panelJustif = document.getElementById('panel_justificaciones');
+      if (panelJustif && !panelJustif.classList.contains('hide')) {
+        renderJustificaciones();
+      }
+    },
+    (err) => console.warn('onSnapshot justificaciones:', err)
+  );
+}
+
+// ══════════════════════════════════════════════════════
+// [MEJORA 3] COLA DE ESCRITURA OFFLINE (localStorage)
+// ══════════════════════════════════════════════════════
+const OFFLINE_QUEUE_KEY = 'asistenciaQR_offlineQueue';
+
+function _encolarOffline(coleccion, data) {
+  let cola = [];
+  try { cola = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); } catch(e) {}
+  cola.push({ coleccion, data, encolado: new Date().toISOString() });
+  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(cola));
+  console.log('📦 Asistencia guardada en cola offline:', data.nombre);
+}
+
+async function _procesarColaOffline() {
+  let cola = [];
+  try { cola = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); } catch(e) {}
+  if (!cola.length) return;
+  const pendientes = [...cola];
+  localStorage.removeItem(OFFLINE_QUEUE_KEY);
+  let enviados = 0, fallidos = [];
+  for (const item of pendientes) {
+    try {
+      await FB.addDoc(FB.collection(FB.db, item.coleccion), { ...item.data, _ts: FB.serverTimestamp() });
+      enviados++;
+    } catch(e) {
+      fallidos.push(item);
+    }
+  }
+  if (fallidos.length) localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(fallidos));
+  if (enviados > 0) notif(`📡 ${enviados} registro(s) offline sincronizado(s) con Firebase`, 'success');
+}
+
+// Escuchar reconexión para vaciar la cola automáticamente
+window.addEventListener('online', () => {
+  if (FB && sesion) {
+    notif('🌐 Conexión restaurada — sincronizando datos offline…', 'info');
+    setTimeout(_procesarColaOffline, 1500);
+  }
+});
 
 // ══════════════════════════════════════════════════════
 // FIRESTORE HELPERS
@@ -1190,8 +1353,22 @@ function irPanel(panel) {
 // ══════════════════════════════════════════════════════
 function iniciarSesion() {
   if (ventanaActiva) { notif('⚠️ Ya hay una sesión activa','warning'); return; }
+  // Verificar que sea entre 1:00 pm y 2:00 pm
+  const ahora = new Date();
+  const hora = ahora.getHours();
+  const minuto = ahora.getMinutes();
+  const esDentroVentana = (hora === 13) || (hora === 14 && minuto === 0);
+  if (!esDentroVentana) {
+    notif('⏰ La sesión solo puede iniciarse entre 1:00 pm y 2:00 pm','error');
+    return;
+  }
+  // Calcular cuántos segundos faltan hasta las 2:00 pm
+  const fin = new Date(ahora);
+  fin.setHours(14, 0, 0, 0);
+  const segsHasta2pm = Math.max(0, Math.floor((fin - ahora) / 1000));
+  tiempoRestante = Math.min(3600, segsHasta2pm); // máx 60 min
+  if (tiempoRestante <= 0) { notif('⏰ Ya pasó el horario de asistencia (1:00 – 2:00 pm)','error'); return; }
   ventanaActiva = true;
-  tiempoRestante = 1800;
   actualizarTimer();
   temporizador = setInterval(() => {
     if (tiempoRestante <= 0) { finalizarSesion(); return; }
@@ -1199,7 +1376,7 @@ function iniciarSesion() {
     actualizarTimer();
     if (tiempoRestante <= 300) document.getElementById('timerStatus').classList.add('blink');
   }, 1000);
-  notif('🟢 Sesión iniciada — 30 minutos activos','success');
+  notif('🟢 Sesión iniciada — hasta las 2:00 pm (máx 60 min)','success');
   renderListaAsistencia();
 }
 function finalizarSesion() {
@@ -1217,7 +1394,7 @@ function actualizarTimer() {
   const m = Math.floor(tiempoRestante/60).toString().padStart(2,'0');
   const s = (tiempoRestante%60).toString().padStart(2,'0');
   document.getElementById('timerDisplay').textContent = m+':'+s;
-  const pct = (tiempoRestante/1800)*100;
+  const pct = (tiempoRestante/3600)*100;
   document.getElementById('progressFill').style.width = pct+'%';
   document.getElementById('progressLabel').textContent = Math.round(pct)+'% tiempo restante';
   document.getElementById('timerStatus').textContent = tiempoRestante<=300 ? '⚠️ Menos de 5 minutos' : '🟢 Sesión activa';
@@ -1383,7 +1560,17 @@ async function registrarAsistencia(qrData) {
     if (existente.length) { notif(`⚠️ ${nombre} ya fue registrado hoy`,'warning'); return false; }
 
     const hora = new Date().toLocaleTimeString('es-PE');
-    await fsAdd('asistencia',{ estudianteId, nombre, grado, seccion, fecha, hora, registradoPor: sesion?.uid||'padre' });
+    try {
+      await fsAdd('asistencia',{ estudianteId, nombre, grado, seccion, fecha, hora, registradoPor: sesion?.uid||'padre' });
+    } catch(netErr) {
+      // [MEJORA 3] Si falla la red, guardar en cola offline y reintentar al reconectar
+      console.warn('⚠️ Error de red al registrar asistencia, encolando offline:', netErr.message);
+      _encolarOffline('asistencia', { estudianteId, nombre, grado, seccion, fecha, hora, registradoPor: sesion?.uid||'padre' });
+      notif(`📦 ${nombre} — guardado offline, se enviará al reconectar`, 'warning');
+      renderListaAsistencia();
+      actualizarStats();
+      return true;
+    }
     notif(`✅ ${nombre} — ${grado} "${seccion}" — ${hora}`,'success');
     renderListaAsistencia();
     cargarTablaAsistencia();
@@ -1552,8 +1739,21 @@ async function renderHijosInfo(hijos) {
     }else if(justifHoy){
       const labels={enfermedad:'🤒 Enfermedad',cita:'🏥 Cita médica',familiar:'👨‍👩‍👧 Motivo familiar',otro:'📝 Otro',alerta:'🚨 ALERTA enviada'};
       const esAprobado=justifHoy.estado==='aprobado';
-      estadoHtml=`<span class="badge badge-blue" style="font-size:12px;padding:5px 14px;">📄 Justificado: ${labels[justifHoy.motivo]||justifHoy.motivo}</span><div style="font-size:11px;color:var(--texto-suave);margin-top:6px;">Estado: <strong>${justifHoy.estado==='aprobado'?'✅ Aprobado':justifHoy.estado==='rechazado'?'❌ Rechazado':'⏳ Pendiente de revisión'}</strong></div>${esAprobado?`<button class="btn btn-azul" style="margin-top:10px;width:100%;justify-content:center;" onclick="descargarBoletaPadre('${justifHoy.id}')">📄 Descargar Boleta de Justificación</button>`:''}`;
-    }else{
+      const esRechazado=justifHoy.estado==='rechazado';
+      const venceEn=justifHoy.venceEn?new Date(justifHoy.venceEn):null;
+      const boletaVencida=venceEn&&Date.now()>venceEn.getTime();
+      const estadoBadgeColor=esAprobado?'badge-green':esRechazado?'badge-red':'badge-amber';
+      const estadoTexto=esAprobado?'✅ Aprobado':esRechazado?'❌ Rechazado':'⏳ Pendiente de revisión';
+      estadoHtml=`
+        <span class="badge badge-blue" style="font-size:12px;padding:5px 14px;">📄 Justificado: ${labels[justifHoy.motivo]||justifHoy.motivo}</span>
+        <div style="font-size:11px;color:var(--texto-suave);margin-top:6px;">Estado: <strong>${estadoTexto}</strong></div>
+        ${esAprobado ? `
+          <button class="btn btn-azul" style="margin-top:10px;width:100%;justify-content:center;font-size:13px;padding:11px;" onclick="descargarBoletaPadre('${justifHoy.id}')">
+            📄 ${boletaVencida ? 'Ver boleta (vencida)' : 'Ver e imprimir boleta oficial'}
+          </button>
+          ${!boletaVencida && venceEn ? `<div style="font-size:10px;color:#7b241c;background:#fdf0ef;border-radius:6px;padding:5px 10px;margin-top:6px;text-align:center;">⏰ Válida hasta: ${venceEn.toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'})} ${venceEn.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'})}</div>` : ''}
+        ` : ''}
+      `;    }else{
       estadoHtml='<span class="badge badge-red" style="font-size:12px;padding:5px 14px;">❌ NO asistió hoy</span>';
       botones=`<button class="btn btn-orange" style="margin-top:10px;width:100%;justify-content:center;" onclick="abrirJustif('${h.id}')">📝 Justificar inasistencia</button>`;
     }
@@ -1567,16 +1767,131 @@ async function renderHijosInfo(hijos) {
 }
 
 async function descargarBoletaPadre(justifId) {
-  const j=await fsGet('justificaciones',justifId);
-  if(!j){notif('❌ No se encontró la justificación','error');return;}
-  const ahora=new Date(j.validadoEn||Date.now());
-  const vence=new Date(j.venceEn||ahora.getTime()+48*60*60*1000);
-  const fmtFecha=d=>d.toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'});
-  const fmtHora=d=>d.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
-  generarBoletaJustificacion(j, fmtFecha, fmtHora, ahora, vence);
+  notif('⏳ Cargando boleta…', 'info');
+  const j = await fsGet('justificaciones', justifId);
+  if (!j) { notif('❌ No se encontró la justificación', 'error'); return; }
+  if (j.estado !== 'aprobado') { notif('⚠️ Solo se puede descargar boletas aprobadas', 'warning'); return; }
+
+  const ahora = new Date(j.validadoEn || Date.now());
+  const vence = new Date(j.venceEn  || ahora.getTime() + 48 * 60 * 60 * 1000);
+  const fmtFecha = d => d.toLocaleDateString('es-PE', {day:'2-digit', month:'2-digit', year:'numeric'});
+  const fmtHora  = d => d.toLocaleTimeString('es-PE', {hour:'2-digit', minute:'2-digit'});
+
+  // Verificar vigencia
+  const yaVencio = Date.now() > vence.getTime();
+  if (yaVencio) {
+    notif('⚠️ Esta boleta ya venció (más de 48 h). Comunícate con la institución.', 'warning');
+  }
+
+  mostrarBoletaPadreModal(j, fmtFecha, fmtHora, ahora, vence, yaVencio);
 }
 
-function cerrarSesionPadre() {
+function mostrarBoletaPadreModal(j, fmtFecha, fmtHora, ahora, vence, yaVencio) {
+  const motLabels = {enfermedad:'🤒 Enfermedad', cita:'🏥 Cita médica', familiar:'👨‍👩‍👧 Motivo familiar', otro:'📝 Otro motivo', alerta:'🚨 Alerta'};
+  const validador = j.validadoPor || 'Docente validador';
+
+  // Construir HTML de la boleta (también usado al imprimir)
+  const boletaHTML = `
+    <div style="font-family:Arial,sans-serif;max-width:420px;margin:0 auto;border-radius:14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.18);background:#fff;">
+      <!-- Cabecera -->
+      <div style="background:#922b21;color:white;padding:20px;text-align:center;">
+        <div style="font-size:28px;margin-bottom:6px;">📚</div>
+        <div style="font-size:13px;font-weight:700;line-height:1.5;">IE N.° 0148<br>MAESTRO VÍCTOR RAÚL HAYA DE LA TORRE</div>
+        <div style="font-size:10px;opacity:.7;margin-top:4px;">Sistema AsistenciaQR — Boleta Oficial de Justificación</div>
+      </div>
+      <!-- Sello -->
+      <div style="background:${yaVencio?'#7f8c8d':'#c0392b'};color:white;text-align:center;padding:11px;font-size:13px;font-weight:900;letter-spacing:2px;">
+        ${yaVencio ? '⚠️ BOLETA VENCIDA' : '✅ JUSTIFICACIÓN VÁLIDA — 48 HORAS'}
+      </div>
+      <!-- Cuerpo -->
+      <div style="padding:20px 22px;">
+        <div style="margin-bottom:12px;"><div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Estudiante</div><div style="font-size:14px;font-weight:700;color:#222;">${j.nombre}</div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div><div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Grado</div><div style="font-size:13px;font-weight:600;color:#222;">${j.grado} Secundaria</div></div>
+          <div><div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Sección</div><div style="font-size:13px;font-weight:600;color:#222;">${j.seccion}</div></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div><div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Fecha inasistencia</div><div style="font-size:13px;font-weight:600;color:#222;">${j.fecha}</div></div>
+          <div><div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Hora envío</div><div style="font-size:13px;font-weight:600;color:#222;">${j.hora||'—'}</div></div>
+        </div>
+        <div style="margin-bottom:12px;"><div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Motivo</div><div style="font-size:13px;font-weight:600;color:#c0392b;">${motLabels[j.motivo]||j.motivo}</div></div>
+        ${j.detalle ? `<div style="background:#fdf5f5;border-radius:8px;padding:10px 12px;font-size:12px;color:#444;line-height:1.6;margin-bottom:12px;"><strong>Descripción:</strong> ${j.detalle}</div>` : ''}
+        <div style="border-top:1px dashed #ddd;margin:14px 0;"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div><div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Validado por</div><div style="font-size:12px;font-weight:600;color:#222;">${validador}</div></div>
+          <div><div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;">Fecha validación</div><div style="font-size:12px;font-weight:600;color:#222;">${fmtFecha(ahora)} ${fmtHora(ahora)}</div></div>
+        </div>
+        <!-- Vigencia -->
+        <div style="background:${yaVencio?'#f2f3f4':'#fdf2f0'};border:2px solid ${yaVencio?'#95a5a6':'#c0392b'};border-radius:10px;padding:14px;text-align:center;margin:14px 0;">
+          <div style="font-size:9px;color:${yaVencio?'#7f8c8d':'#922b21'};font-weight:700;text-transform:uppercase;letter-spacing:.5px;">⏰ ${yaVencio?'Venció el':'Válido hasta'}</div>
+          <div style="font-size:16px;font-weight:900;color:${yaVencio?'#7f8c8d':'#922b21'};margin-top:4px;">${fmtFecha(vence)} ${fmtHora(vence)}</div>
+          ${yaVencio?'<div style="font-size:10px;color:#7f8c8d;margin-top:4px;">Comunícate con la institución para regularizar.</div>':''}
+        </div>
+        <!-- Nota -->
+        <div style="background:#fff8e1;border-left:3px solid #f39c12;padding:10px 12px;font-size:10px;color:#7d6608;line-height:1.6;margin-bottom:14px;">
+          <strong>IMPORTANTE:</strong> Presenta esta boleta en la institución educativa para regularizar la inasistencia. Válida por <strong>48 horas</strong> desde la validación.
+        </div>
+        <!-- Firma -->
+        <div style="border-top:1.5px solid #333;margin:24px 10px 6px;font-size:10px;color:#555;text-align:center;padding-top:8px;">
+          ${validador}<br><span style="font-size:9px;color:#999;">Docente Validador — IE N.° 0148</span>
+        </div>
+      </div>
+      <!-- Pie -->
+      <div style="background:#922b21;color:rgba(255,255,255,.5);font-size:8px;text-align:center;padding:8px;">
+        Generado: ${fmtFecha(new Date())} ${fmtHora(new Date())} — Sistema AsistenciaQR Firebase
+      </div>
+    </div>`;
+
+  // Inyectar modal de boleta en el DOM si no existe
+  let modal = document.getElementById('modalBoletaPadre');
+  if (!modal) {
+    modal = document.createElement('div');
+    modal.id = 'modalBoletaPadre';
+    modal.className = 'modal';
+    modal.innerHTML = `
+      <div class="modal-box" style="max-width:480px;padding:0;overflow:hidden;border-radius:16px;">
+        <div class="modal-header" style="padding:14px 18px;border-bottom:1px solid var(--borde);">
+          <span class="modal-title">📄 Boleta de Justificación</span>
+          <button class="modal-close" onclick="document.getElementById('modalBoletaPadre').classList.remove('open')">✕</button>
+        </div>
+        <div id="boletaPreviewBody" style="padding:18px;max-height:70vh;overflow-y:auto;background:#f5f5f5;"></div>
+        <div style="padding:14px 18px;display:flex;gap:10px;border-top:1px solid var(--borde);background:white;">
+          <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="imprimirBoletaPadre()">🖨️ Imprimir boleta</button>
+          <button class="btn btn-ghost" style="flex:1;justify-content:center;" onclick="document.getElementById('modalBoletaPadre').classList.remove('open')">Cerrar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+
+  document.getElementById('boletaPreviewBody').innerHTML = boletaHTML;
+  // Guardar HTML completo para imprimir
+  modal._boletaHTMLCompleto = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Boleta — ${j.nombre}</title>
+    <style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;background:#f5f5f5;padding:20px;display:flex;justify-content:center;}@media print{body{background:white;padding:0;}}</style>
+    </head><body>${boletaHTML}<script>window.onload=()=>setTimeout(()=>window.print(),500);<\/script></body></html>`;
+  modal.classList.add('open');
+}
+
+function imprimirBoletaPadre() {
+  const modal = document.getElementById('modalBoletaPadre');
+  if (!modal || !modal._boletaHTMLCompleto) return;
+  const w = window.open('', '_blank');
+  if (w) {
+    w.document.write(modal._boletaHTMLCompleto);
+    w.document.close();
+  } else {
+    // Fallback: si el popup fue bloqueado, abrir via blob URL
+    const blob = new Blob([modal._boletaHTMLCompleto], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.target   = '_blank';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    notif('💡 Si no se abrió automáticamente, permite las ventanas emergentes en tu navegador.', 'info');
+  }
+}
+
+
   document.getElementById('padreLoginDiv').style.display='';
   document.getElementById('padreInfoDiv').classList.add('hide');
   document.getElementById('padreInputDNI').value='';
@@ -1642,9 +1957,7 @@ async function enviarJustificacion() {
   await fsAdd('justificaciones',justif);
   document.getElementById('modalJustif').classList.remove('open');
   if(motivoSel==='alerta'){
-    notif('🚨 ALERTA enviada al tutor y auxiliar','error');
-    const msg=encodeURIComponent(`🚨 ALERTA URGENTE — ${e?.nombre||''} (${e?.grado||''} "${e?.seccion||''}") salió de casa pero NO llegó al colegio. Fecha: ${fecha}`);
-    setTimeout(()=>{if(confirm('¿Enviar alerta por WhatsApp también?'))window.open(`https://wa.me/?text=${msg}`,'_blank');},500);
+    notif('🚨 ALERTA enviada al tutor y auxiliar — ellos contactarán al colegio','error');
   }else{
     notif('📄 Justificación enviada — pendiente de revisión','success');
   }
@@ -1679,12 +1992,15 @@ async function renderJustificaciones() {
       </div>
       <div class="justif-motivo"><strong>${motLabels[j.motivo]||j.motivo}</strong>${j.detalle?'<br><span style="color:var(--texto-suave);">'+j.detalle+'</span>':''}</div>
       ${j.evidencia?`<div class="justif-evidencia" onclick="verEvidencia('${j.evidencia}')"><img src="${j.evidencia}" alt="Evidencia"><span>Ver evidencia adjunta →</span></div>`:''}
-      ${j.estado==='alerta'&&j.telefono?`<a href="https://wa.me/${j.telefono}?text=${encodeURIComponent('🚨 ALERTA: '+j.nombre+' no llegó al colegio el '+j.fecha+'.')}" target="_blank" class="btn btn-danger btn-sm" style="margin-bottom:10px;text-decoration:none;">📱 Contactar por WhatsApp</a>`:''}
+      ${(j.estado==='alerta'||j.estado==='pendiente'||j.estado==='aprobado')&&j.telefono&&sesion&&sesion.rol!=='padre'?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <a href="https://wa.me/${j.telefono.replace(/\D/g,'')}?text=${encodeURIComponent('📋 IE N.° 0148 — Asistencia de '+j.nombre+' ('+j.grado+' "'+j.seccion+'") el '+j.fecha+(j.estado==='alerta'?'\n🚨 ALERTA: no llegó al colegio. Comunicarse con urgencia.':j.estado==='aprobado'?'\n✅ Justificación aprobada. Ingrese al portal con su DNI para ver la boleta.':'\n⏳ Justificación pendiente de revisión.'))}" target="_blank" class="btn btn-sm" style="background:#25D366;color:white;text-decoration:none;">📱 WhatsApp</a>
+        ${j.estado==='aprobado'?`<button class="btn btn-azul btn-sm" onclick="descargarBoletaStaff('${j.id}')">📄 Ver boleta</button>`:''}
+      </div>`:''}
       ${j.estado==='pendiente'||j.estado==='alerta'?`<div class="justif-actions"><button class="btn btn-success btn-sm" onclick="cambiarEstadoJustif('${j.id}','aprobado')">✅ Aprobar</button><button class="btn btn-danger btn-sm" onclick="cambiarEstadoJustif('${j.id}','rechazado')">❌ Rechazar</button></div>`:''}
     </div>`).join('');
   const alertas=justifs.filter(j=>j.estado==='alerta');
   const banner=document.getElementById('alertasBanner');
-  if(banner) banner.innerHTML=alertas.map(j=>`<div class="alerta-banner"><div><div class="alerta-banner-txt">🚨 ALERTA URGENTE</div><div class="alerta-banner-sub">${j.nombre} — ${j.grado} "${j.seccion}" — No llegó al colegio — ${j.fecha}</div></div>${j.telefono?`<a href="https://wa.me/${j.telefono}?text=${encodeURIComponent('🚨 ALERTA: '+j.nombre+' no llegó. Fecha: '+j.fecha)}" target="_blank" class="btn btn-sm" style="background:white;color:var(--rojo);text-decoration:none;">📱 WhatsApp</a>`:''}</div>`).join('');
+  if(banner) banner.innerHTML=alertas.map(j=>`<div class="alerta-banner"><div><div class="alerta-banner-txt">🚨 ALERTA URGENTE</div><div class="alerta-banner-sub">${j.nombre} — ${j.grado} "${j.seccion}" — No llegó al colegio — ${j.fecha}</div></div>${j.telefono&&sesion&&sesion.rol!=='padre'?`<a href="https://wa.me/${j.telefono.replace(/\D/g,'')}?text=${encodeURIComponent('🚨 ALERTA: '+j.nombre+' no llegó. Fecha: '+j.fecha+' — IE N.° 0148.')}" target="_blank" class="btn btn-sm" style="background:white;color:var(--rojo);text-decoration:none;">📱 WhatsApp</a>`:''}</div>`).join('');
 }
 
 async function cambiarEstadoJustif(id, estado) {
@@ -1701,7 +2017,7 @@ async function cambiarEstadoJustif(id, estado) {
       // Generar boleta (se abre en ventana nueva para imprimir)
       generarBoletaJustificacion(j, fmtFecha, fmtHora, ahora, vence);
 
-      // Notificar al padre por WhatsApp si tiene teléfono registrado
+      // Mostrar acciones de notificación manual (tutor/admin/auxiliar deciden)
       const tel = (j.telefono||'').replace(/\D/g,'');
       const motLabels={enfermedad:'Enfermedad',cita:'Cita médica',familiar:'Motivo familiar',otro:'Otro motivo',alerta:'Alerta'};
       const msg = `✅ *JUSTIFICACIÓN APROBADA*\n\n` +
@@ -1715,16 +2031,16 @@ async function cambiarEstadoJustif(id, estado) {
         `ℹ️ Ingrese al portal de padres con su DNI para descargar la boleta oficial.`;
 
       if(tel){
-        setTimeout(()=>{
-          if(confirm(`¿Notificar al padre/apoderado por WhatsApp?\n\nNúmero: +${tel}\n\nSe enviará el mensaje de aprobación con instrucciones para descargar la boleta.`)){
-            window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,'_blank');
-          }
-        },800);
+        // Agregar botón manual de WhatsApp en la notificación
+        const s=document.getElementById('notifStack');
+        const el=document.createElement('div');
+        el.className='notif notif-success';
+        el.style.cssText='flex-direction:column;align-items:flex-start;gap:8px;max-width:340px;';
+        el.innerHTML=`<span>✅ <strong>${j.nombre}</strong> aprobado. ¿Notificar al apoderado?</span><a href="https://wa.me/${tel}?text=${encodeURIComponent(msg)}" target="_blank" class="btn btn-sm" style="background:#25D366;color:white;text-decoration:none;border-radius:6px;">📱 Enviar por WhatsApp</a>`;
+        s.appendChild(el);
+        setTimeout(()=>el.remove(), 12000);
       } else {
-        // Sin teléfono — informar al tutor
-        setTimeout(()=>{
-          notif('⚠️ El estudiante no tiene teléfono registrado — notifica al padre manualmente','warning');
-        },800);
+        setTimeout(()=>{ notif('⚠️ El estudiante no tiene teléfono registrado — notifica al padre manualmente','warning'); },800);
       }
     }
   } else if(estado==='rechazado'){
@@ -1733,12 +2049,14 @@ async function cambiarEstadoJustif(id, estado) {
     if(j){
       const tel=(j.telefono||'').replace(/\D/g,'');
       if(tel){
-        setTimeout(()=>{
-          const msg=`❌ *JUSTIFICACIÓN NO APROBADA*\n\nIE N.° 0148 — Sistema AsistenciaQR\n\n👤 *Estudiante:* ${j.nombre}\n📅 *Fecha:* ${j.fecha}\n\nLa justificación presentada no fue aprobada. Por favor comuníquese con la institución para más información.`;
-          if(confirm(`¿Notificar al padre sobre el rechazo por WhatsApp?\n\nNúmero: +${tel}`)){
-            window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,'_blank');
-          }
-        },500);
+        const s=document.getElementById('notifStack');
+        const el=document.createElement('div');
+        el.className='notif notif-warning';
+        el.style.cssText='flex-direction:column;align-items:flex-start;gap:8px;max-width:340px;';
+        const msg=`❌ *JUSTIFICACIÓN NO APROBADA*\n\nIE N.° 0148 — Sistema AsistenciaQR\n\n👤 *Estudiante:* ${j.nombre}\n📅 *Fecha:* ${j.fecha}\n\nLa justificación no fue aprobada. Comuníquese con la institución.`;
+        el.innerHTML=`<span>❌ <strong>${j.nombre}</strong> rechazado. ¿Notificar al apoderado?</span><a href="https://wa.me/${tel}?text=${encodeURIComponent(msg)}" target="_blank" class="btn btn-sm" style="background:#25D366;color:white;text-decoration:none;border-radius:6px;">📱 Enviar por WhatsApp</a>`;
+        s.appendChild(el);
+        setTimeout(()=>el.remove(), 12000);
       }
     }
   }
@@ -1801,6 +2119,19 @@ function generarBoletaJustificacion(j, fmtFecha, fmtHora, ahora, vence) {
   w.document.write(html); w.document.close();
 }
 
+async function descargarBoletaStaff(justifId) {
+  notif('⏳ Cargando boleta…', 'info');
+  const j = await fsGet('justificaciones', justifId);
+  if (!j) { notif('❌ No se encontró la justificación', 'error'); return; }
+  if (j.estado !== 'aprobado') { notif('⚠️ Solo disponible para boletas aprobadas', 'warning'); return; }
+  const ahora = new Date(j.validadoEn || Date.now());
+  const vence = new Date(j.venceEn  || ahora.getTime() + 48 * 60 * 60 * 1000);
+  const fmtFecha = d => d.toLocaleDateString('es-PE', {day:'2-digit', month:'2-digit', year:'numeric'});
+  const fmtHora  = d => d.toLocaleTimeString('es-PE', {hour:'2-digit', minute:'2-digit'});
+  const yaVencio = Date.now() > vence.getTime();
+  mostrarBoletaPadreModal(j, fmtFecha, fmtHora, ahora, vence, yaVencio);
+}
+
 function verEvidencia(src) {
   document.getElementById('evidenciaFullImg').src=src;
   document.getElementById('modalEvidencia').classList.add('open');
@@ -1811,11 +2142,12 @@ async function renderAlertas() {
   const alertas=justifs.filter(j=>j.estado==='alerta');
   const c=document.getElementById('alertasContainer');
   if(!c) return;
-  c.innerHTML=alertas.map(j=>`<div class="alerta-banner"><div><div class="alerta-banner-txt">🚨 ALERTA URGENTE — ${j.nombre}</div><div class="alerta-banner-sub">${j.grado} "${j.seccion}" — No llegó al colegio — ${j.fecha} ${j.hora}</div></div>${j.telefono?`<a href="https://wa.me/${j.telefono}?text=${encodeURIComponent('🚨 ALERTA: '+j.nombre+' no llegó al colegio el '+j.fecha)}" target="_blank" class="btn btn-sm" style="background:white;color:var(--rojo);text-decoration:none;white-space:nowrap;">📱 WhatsApp</a>`:''}</div>`).join('');
+  c.innerHTML=alertas.map(j=>`<div class="alerta-banner"><div><div class="alerta-banner-txt">🚨 ALERTA URGENTE — ${j.nombre}</div><div class="alerta-banner-sub">${j.grado} "${j.seccion}" — No llegó al colegio — ${j.fecha} ${j.hora}</div></div>${j.telefono&&sesion&&sesion.rol!=='padre'?`<a href="https://wa.me/${j.telefono.replace(/\D/g,'')}?text=${encodeURIComponent('🚨 ALERTA: '+j.nombre+' no llegó al colegio el '+j.fecha+'. Comunicarse con urgencia — IE N.° 0148.')}" target="_blank" class="btn btn-sm" style="background:white;color:var(--rojo);text-decoration:none;white-space:nowrap;">📱 WhatsApp</a>`:''}</div>`).join('');
 }
 
 async function renderAlertasBadge() {
-  const justifs=await fsGetAll('justificaciones');
+  // [MEJORA 2] Usar caché en tiempo real si está disponible, evitar lectura extra
+  const justifs = _justificacionesCache.length ? _justificacionesCache : await fsGetAll('justificaciones');
   const pendientes=justifs.filter(j=>j.estado==='pendiente'||j.estado==='alerta').length;
   const badge=document.getElementById('navAlertaBadge');
   if(badge){badge.style.display=pendientes>0?'':'none';badge.textContent=pendientes;}
@@ -1828,11 +2160,12 @@ async function renderAlertasBadge() {
 // ══════════════════════════════════════════════════════
 async function actualizarStats() {
   try {
-    const todos=await fsGetAll('estudiantes');
+    // [MEJORA 2] Usar cachés en tiempo real si están disponibles
+    const todos = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
     const fecha=getFecha();
-    const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
+    const asist = _asistenciaHoyCache.length ? _asistenciaHoyCache : await fsQuery('asistencia',FB.where('fecha','==',fecha));
     const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
-    const justifs=await fsGetAll('justificaciones');
+    const justifs = _justificacionesCache.length ? _justificacionesCache : await fsGetAll('justificaciones');
     const pendientes=justifs.filter(j=>j.estado==='pendiente'||j.estado==='alerta').length;
     const total=todos.length, presentes=[...presSet].filter(id=>todos.find(e=>e.id===id)).length;
     const ausentes=total-presentes, pct=total?Math.round(presentes/total*100):0;
