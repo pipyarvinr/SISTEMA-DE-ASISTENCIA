@@ -750,11 +750,14 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
       <div id="photoStatus" style="margin-top:8px;font-size:12px;text-align:center;color:var(--texto-suave);"></div>
     </div>
     <div id="spManual" style="display:none;padding:14px;">
-      <div class="info-box warn"><strong>⌨️ Registro manual</strong>Ingresa el ID del estudiante visible en su tarjeta QR.</div>
-      <div class="form-group" style="margin-bottom:10px;"><label>ID del Estudiante</label>
-        <input type="text" id="manualInput" placeholder="Número de ID o código QR completo" style="padding:10px 12px;border:1.5px solid var(--borde);border-radius:8px;font-size:14px;font-family:inherit;outline:none;width:100%;" onkeydown="if(event.key==='Enter')procesarManual()">
+      <div class="info-box warn"><strong>⌨️ Registro manual</strong>Para alumnos que olvidaron su QR. Busca por nombre y marca Presente o Ausente.</div>
+      <div class="form-group" style="margin-bottom:6px;"><label>Buscar alumno por nombre</label>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="manualInput" placeholder="Escribe el nombre del alumno…" style="flex:1;padding:10px 12px;border:1.5px solid var(--borde);border-radius:8px;font-size:14px;font-family:inherit;outline:none;" onkeydown="if(event.key==='Enter')procesarManual()">
+          <button class="btn btn-primary" onclick="procesarManual()">🔍</button>
+        </div>
       </div>
-      <button class="btn btn-primary btn-lg" onclick="procesarManual()">✅ Registrar Asistencia</button>
+      <div id="manualResultados"></div>
     </div>
   </div>
 </div>
@@ -817,8 +820,8 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
       <button class="motivo-btn" onclick="selMotivo('alerta')" id="mb_alerta" style="grid-column:1/-1;border-color:var(--rojo);color:var(--rojo);"><span class="m-icon">🚨</span>Salió de casa pero NO llegó al colegio — ALERTA</button>
     </div>
     <div id="detalleJustif" style="display:none;">
-      <div class="form-group" style="margin-bottom:12px;"><label>Descripción adicional</label>
-        <textarea id="justifDetalle" rows="3" style="resize:none;padding:9px 12px;border:1.5px solid var(--borde);border-radius:8px;font-family:inherit;font-size:13px;outline:none;width:100%;" placeholder="Describe brevemente el motivo…"></textarea>
+      <div class="form-group" style="margin-bottom:12px;"><label>Descripción <span style="color:var(--rojo)">* OBLIGATORIO</span></label>
+        <textarea id="justifDetalle" rows="3" style="resize:none;padding:9px 12px;border:1.5px solid var(--borde);border-radius:8px;font-family:inherit;font-size:13px;outline:none;width:100%;" placeholder="Describe brevemente el motivo… (campo obligatorio)"></textarea>
       </div>
       <div id="evidenciaDiv">
         <div style="font-size:12px;font-weight:700;color:var(--texto-suave);margin-bottom:6px;">EVIDENCIA (foto de receta, cita, etc.)</div>
@@ -891,10 +894,7 @@ let _ignorarAuthChange = false; // bandera para bloquear listener durante setup
 document.addEventListener('fbready', async () => {
   FB = window._fb;
 
-  // Primero crear admin si no existe (ANTES de activar el listener)
-  await crearAdminInicial();
-
-  // Mostrar login
+  // Mostrar login inmediatamente — sin esperar red
   document.getElementById('splashScreen').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
 
@@ -919,10 +919,12 @@ document.addEventListener('fbready', async () => {
 });
 
 setTimeout(() => {
-  if (!window._fbReady) {
-    document.querySelector('.splash-txt').textContent = '⚠️ Error de conexión — verifica tu internet';
+  const splash = document.getElementById('splashScreen');
+  if (splash && splash.style.display !== 'none') {
+    splash.style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'flex';
   }
-}, 8000);
+}, 3000);
 
 // ══════════════════════════════════════════════════════
 // ADMIN INICIAL (se crea la primera vez, silenciosamente)
@@ -1410,24 +1412,42 @@ async function renderListaAsistencia() {
   const fecha = getFecha();
   const asist = await fsQuery('asistencia', FB.where('fecha','==',fecha));
   _asistenciaHoyCache = asist;
-  const presSet = new Set(asist.map(a=>a.estudianteId));
+  const presSet = new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
+  const ausenteSet = new Set(asist.filter(a=>a.estado==='ausente').map(a=>a.estudianteId));
   const justifs = await fsQuery('justificaciones', FB.where('fecha','==',fecha), FB.where('estado','==','aprobado'));
   const justifSet = new Set(justifs.map(j=>j.estudianteId));
 
   if (!lista.length) { c.innerHTML='<div style="padding:24px;text-align:center;color:var(--texto-suave);grid-column:1/-1;">📭 Sin estudiantes para mostrar</div>'; return; }
 
   c.innerHTML = lista.map(e => {
-    const pres=presSet.has(e.id), just=justifSet.has(e.id);
+    const pres=presSet.has(e.id), ausen=ausenteSet.has(e.id), just=justifSet.has(e.id);
     const cls=pres?'presente':just?'justificado':'ausente';
-    const badge=pres?'<span class="badge badge-green">✅ Presente</span>':just?'<span class="badge badge-blue">📄 Justificado</span>':'<span class="badge badge-red">❌ Ausente</span>';
+    const badge=pres?'<span class="badge badge-green">✅ Presente</span>':ausen?'<span class="badge badge-red">❌ Ausente (registrado)</span>':just?'<span class="badge badge-blue">📄 Justificado</span>':'<span class="badge badge-red">❌ Ausente</span>';
     const qrStr = JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
-    return `<div class="student-card ${cls}">
+    const nomb = e.nombre.replace(/'/g,"\\'");
+    return `<div class="student-card ${cls}" id="scard_${e.id}">
       <div class="student-name">${e.nombre}</div>
       <div class="student-grade">${e.grado} — Sección ${e.seccion}</div>
-      ${badge}
-      ${!pres?`<br><button class="btn btn-success btn-sm" style="margin-top:6px;" onclick="registrarAsistencia('${qrStr}')">✅ Registrar</button>`:''}
+      <div style="margin-top:8px;">${badge}</div>
+      <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;justify-content:center;">
+        ${pres
+          ? `<button class="btn btn-ghost btn-sm" onclick="desmarcarAsistencia('${e.id}','${e.nombre.replace(/'/g,"\\'")}')">↩ Desmarcar</button>`
+          : ausen
+            ? `<button class="btn btn-success btn-sm" onclick="desmarcarAsistencia('${e.id}','${e.nombre.replace(/'/g,"\\'")}')">↩ Cambiar a Presente</button>`
+            : `<button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">✅ Presente</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌ Ausente</button>`
+        }
+      </div>
     </div>`;
   }).join('');
+}
+
+async function desmarcarAsistencia(estudianteId, nombre) {
+  if(!confirm('¿Desmarcar asistencia de '+nombre+'?')) return;
+  const fecha=getFecha();
+  const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha),FB.where('estudianteId','==',estudianteId));
+  for(const a of asist) await fsDelete('asistencia',a.id);
+  notif('↩ Asistencia desmarcada: '+nombre,'info');
+  renderListaAsistencia(); cargarTablaAsistencia(); actualizarStats();
 }
 
 async function cargarTablaAsistencia() {
@@ -1437,7 +1457,10 @@ async function cargarTablaAsistencia() {
   if (!tbody) return;
   if (!asist.length) { tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--texto-suave);padding:18px;">Sin registros hoy</td></tr>'; return; }
   asist.sort((a,b)=>a.hora<b.hora?1:-1);
-  tbody.innerHTML = asist.map(a=>`<tr class="row-presente"><td>${a.nombre||a.estudianteId}</td><td>${a.grado||'—'}</td><td>${a.seccion||'—'}</td><td>${a.hora}</td><td><span class="badge badge-green">✅ Presente</span></td></tr>`).join('');
+  tbody.innerHTML = asist.map(a=>{
+    const esAusente=a.estado==='ausente';
+    return `<tr class="${esAusente?'row-ausente':'row-presente'}"><td>${a.nombre||a.estudianteId}</td><td>${a.grado||'—'}</td><td>${a.seccion||'—'}</td><td>${a.hora}</td><td>${esAusente?'<span class="badge badge-red">❌ Ausente</span>':'<span class="badge badge-green">✅ Presente</span>'}</td></tr>`;
+  }).join('');
 }
 
 async function buscarPorNombre() {
@@ -1448,13 +1471,19 @@ async function buscarPorNombre() {
   lista = lista.filter(e=>e.nombre.toLowerCase().includes(q));
   const fecha=getFecha();
   const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
-  const presSet=new Set(asist.map(a=>a.estudianteId));
+  const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
   c.innerHTML=lista.slice(0,8).map(e=>{
     const pres=presSet.has(e.id);
     const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;margin-bottom:5px;background:${pres?'#fdf0ef':'var(--gris-bg)'};border:1px solid ${pres?'#a9dfbf':'var(--borde)'};">
       <div><div style="font-size:12px;font-weight:700;">${e.nombre}</div><div style="font-size:10px;color:var(--texto-suave);">${e.grado} — Sección ${e.seccion}</div></div>
-      ${pres?'<span class="badge badge-green">✅</span>':`<button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">Registrar</button>`}
+      ${pres
+        ? '<span class="badge badge-green">✅ Presente</span>'
+        : `<div style="display:flex;gap:4px;">
+            <button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">✅</button>
+            <button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌</button>
+           </div>`
+      }
     </div>`;
   }).join('')||'<div style="padding:8px;font-size:12px;color:var(--texto-suave);">Sin resultados</div>';
 }
@@ -1471,7 +1500,7 @@ async function buscarPorDNI() {
   if(!hijos.length){c.innerHTML='<div style="font-size:12px;color:var(--rojo);background:#fdf2f0;padding:8px;border-radius:8px;">❌ Sin estudiantes con ese DNI</div>';return;}
   const fecha=getFecha();
   const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
-  const presSet=new Set(asist.map(a=>a.estudianteId));
+  const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
   c.innerHTML=hijos.map(e=>{
     const pres=presSet.has(e.id);
     const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
@@ -1506,29 +1535,45 @@ async function consultarPadre() {
 async function renderHijosInfo(hijos) {
   const fecha=getFecha();
   const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
-  const presSet=new Set(asist.map(a=>a.estudianteId));
+  const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
+  const ausenteSet=new Set(asist.filter(a=>a.estado==='ausente').map(a=>a.estudianteId));
   const justifs=await fsGetAll('justificaciones');
   const c=document.getElementById('padreHijosDiv');
   c.innerHTML=hijos.map(h=>{
     const pres=presSet.has(h.id);
+    const ausenteReg=ausenteSet.has(h.id);
     const justifHoy=justifs.find(j=>j.estudianteId===h.id&&j.fecha===fecha);
     let estadoHtml='',botones='';
     if(pres){
       estadoHtml='<span class="badge badge-green" style="font-size:12px;padding:5px 14px;">✅ ASISTIÓ hoy</span>';
+    }else if(ausenteReg){
+      estadoHtml=`<div style="background:#fdf2f0;border:2px solid var(--rojo);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.6em;margin-bottom:4px;">🚨</div><div style="font-weight:700;color:var(--rojo);font-size:14px;">AUSENTE HOY</div><div style="font-size:12px;color:#7a4f4f;margin-top:4px;">La institución registró su ausencia el día de hoy.</div></div>`;
+      if(!justifHoy) botones=`<button class="btn btn-orange" style="margin-top:10px;width:100%;justify-content:center;" onclick="abrirJustif('${h.id}')">📝 Justificar inasistencia</button>`;
     }else if(justifHoy){
       const labels={enfermedad:'🤒 Enfermedad',cita:'🏥 Cita médica',familiar:'👨‍👩‍👧 Motivo familiar',otro:'📝 Otro',alerta:'🚨 ALERTA enviada'};
-      estadoHtml=`<span class="badge badge-blue" style="font-size:12px;padding:5px 14px;">📄 Justificado: ${labels[justifHoy.motivo]||justifHoy.motivo}</span><div style="font-size:11px;color:var(--texto-suave);margin-top:6px;">Estado: <strong>${justifHoy.estado}</strong></div>`;
+      const esAprobado=justifHoy.estado==='aprobado';
+      estadoHtml=`<span class="badge badge-blue" style="font-size:12px;padding:5px 14px;">📄 Justificado: ${labels[justifHoy.motivo]||justifHoy.motivo}</span><div style="font-size:11px;color:var(--texto-suave);margin-top:6px;">Estado: <strong>${justifHoy.estado==='aprobado'?'✅ Aprobado':justifHoy.estado==='rechazado'?'❌ Rechazado':'⏳ Pendiente de revisión'}</strong></div>${esAprobado?`<button class="btn btn-azul" style="margin-top:10px;width:100%;justify-content:center;" onclick="descargarBoletaPadre('${justifHoy.id}')">📄 Descargar Boleta de Justificación</button>`:''}`;
     }else{
       estadoHtml='<span class="badge badge-red" style="font-size:12px;padding:5px 14px;">❌ NO asistió hoy</span>';
       botones=`<button class="btn btn-orange" style="margin-top:10px;width:100%;justify-content:center;" onclick="abrirJustif('${h.id}')">📝 Justificar inasistencia</button>`;
     }
-    return `<div class="hijo-card ${pres?'presente':justifHoy?'':'ausente'}">
+    return `<div class="hijo-card ${pres?'presente':(ausenteReg||!justifHoy)?'ausente':''}">
       <div class="hijo-nombre">${h.nombre}</div>
       <div class="hijo-grado">${h.grado} — Sección ${h.seccion}</div>
       <div style="margin-top:10px;">${estadoHtml}</div>
       ${botones}
     </div>`;
   }).join('');
+}
+
+async function descargarBoletaPadre(justifId) {
+  const j=await fsGet('justificaciones',justifId);
+  if(!j){notif('❌ No se encontró la justificación','error');return;}
+  const ahora=new Date(j.validadoEn||Date.now());
+  const vence=new Date(j.venceEn||ahora.getTime()+48*60*60*1000);
+  const fmtFecha=d=>d.toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const fmtHora=d=>d.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+  generarBoletaJustificacion(j, fmtFecha, fmtHora, ahora, vence);
 }
 
 function cerrarSesionPadre() {
@@ -1582,6 +1627,7 @@ function previsualizarEvidencia(input) {
 async function enviarJustificacion() {
   if(!motivoSel||!justifEstudianteId) return;
   const detalle=document.getElementById('justifDetalle').value.trim();
+  if(!detalle&&motivoSel!=='alerta'){notif('❌ La descripción es OBLIGATORIA','error');document.getElementById('justifDetalle').focus();return;}
   const fecha=getFecha();
   const hora=new Date().toLocaleTimeString('es-PE');
   const e=await fsGet('estudiantes',justifEstudianteId);
@@ -1642,9 +1688,117 @@ async function renderJustificaciones() {
 }
 
 async function cambiarEstadoJustif(id, estado) {
-  await fsUpdate('justificaciones',id,{estado});
+  const ahora=new Date();
+  const vence=new Date(ahora.getTime()+48*60*60*1000);
+  const fmtFecha=d=>d.toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'});
+  const fmtHora=d=>d.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+  await fsUpdate('justificaciones',id,{estado, validadoEn:ahora.toISOString(), venceEn:vence.toISOString(), validadoPor:sesion?.nombre||'Tutor'});
   notif(estado==='aprobado'?'✅ Justificación aprobada':'❌ Justificación rechazada', estado==='aprobado'?'success':'warning');
+
+  if(estado==='aprobado'){
+    const j=await fsGet('justificaciones',id);
+    if(j){
+      // Generar boleta (se abre en ventana nueva para imprimir)
+      generarBoletaJustificacion(j, fmtFecha, fmtHora, ahora, vence);
+
+      // Notificar al padre por WhatsApp si tiene teléfono registrado
+      const tel = (j.telefono||'').replace(/\D/g,'');
+      const motLabels={enfermedad:'Enfermedad',cita:'Cita médica',familiar:'Motivo familiar',otro:'Otro motivo',alerta:'Alerta'};
+      const msg = `✅ *JUSTIFICACIÓN APROBADA*\n\n` +
+        `IE N.° 0148 — Sistema AsistenciaQR\n\n` +
+        `👤 *Estudiante:* ${j.nombre}\n` +
+        `📚 *Grado:* ${j.grado} — Sección ${j.seccion}\n` +
+        `📅 *Fecha inasistencia:* ${j.fecha}\n` +
+        `📋 *Motivo:* ${motLabels[j.motivo]||j.motivo}\n` +
+        `✔️ *Validado por:* ${sesion?.nombre||'Tutor'}\n` +
+        `🕐 *Válido hasta:* ${fmtFecha(vence)} ${fmtHora(vence)}\n\n` +
+        `ℹ️ Ingrese al portal de padres con su DNI para descargar la boleta oficial.`;
+
+      if(tel){
+        setTimeout(()=>{
+          if(confirm(`¿Notificar al padre/apoderado por WhatsApp?\n\nNúmero: +${tel}\n\nSe enviará el mensaje de aprobación con instrucciones para descargar la boleta.`)){
+            window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,'_blank');
+          }
+        },800);
+      } else {
+        // Sin teléfono — informar al tutor
+        setTimeout(()=>{
+          notif('⚠️ El estudiante no tiene teléfono registrado — notifica al padre manualmente','warning');
+        },800);
+      }
+    }
+  } else if(estado==='rechazado'){
+    // Notificar rechazo al padre por WhatsApp si tiene teléfono
+    const j=await fsGet('justificaciones',id);
+    if(j){
+      const tel=(j.telefono||'').replace(/\D/g,'');
+      if(tel){
+        setTimeout(()=>{
+          const msg=`❌ *JUSTIFICACIÓN NO APROBADA*\n\nIE N.° 0148 — Sistema AsistenciaQR\n\n👤 *Estudiante:* ${j.nombre}\n📅 *Fecha:* ${j.fecha}\n\nLa justificación presentada no fue aprobada. Por favor comuníquese con la institución para más información.`;
+          if(confirm(`¿Notificar al padre sobre el rechazo por WhatsApp?\n\nNúmero: +${tel}`)){
+            window.open(`https://wa.me/${tel}?text=${encodeURIComponent(msg)}`,'_blank');
+          }
+        },500);
+      }
+    }
+  }
+
   renderJustificaciones(); renderAlertasBadge(); actualizarStats();
+}
+
+function generarBoletaJustificacion(j, fmtFecha, fmtHora, ahora, vence) {
+  const motLabels={enfermedad:'🤒 Enfermedad',cita:'🏥 Cita médica',familiar:'👨‍👩‍👧 Motivo familiar',otro:'📝 Otro motivo',alerta:'🚨 Alerta'};
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{font-family:Arial,sans-serif;background:#f5f5f5;display:flex;justify-content:center;padding:20px;}
+    .boleta{background:white;width:380px;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.15);}
+    .header{background:#922b21;color:white;padding:18px 20px;text-align:center;}
+    .header h1{font-size:13px;font-weight:700;line-height:1.4;}
+    .header p{font-size:10px;opacity:.7;margin-top:3px;}
+    .sello{background:#c0392b;color:white;text-align:center;padding:10px;font-size:15px;font-weight:900;letter-spacing:2px;}
+    .body{padding:18px 20px;}
+    .field{margin-bottom:12px;}
+    .field label{font-size:9px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:3px;}
+    .field value{font-size:13px;font-weight:600;color:#222;display:block;}
+    .divider{border:none;border-top:1px dashed #ddd;margin:14px 0;}
+    .vence{background:#fdf2f0;border:2px solid #c0392b;border-radius:8px;padding:12px;text-align:center;margin:14px 0;}
+    .vence .v-lbl{font-size:9px;color:#922b21;font-weight:700;text-transform:uppercase;}
+    .vence .v-val{font-size:14px;font-weight:900;color:#922b21;margin-top:2px;}
+    .nota{background:#fff8e1;border-left:3px solid #f39c12;padding:10px 12px;font-size:10px;color:#7d6608;line-height:1.5;margin-bottom:14px;}
+    .firma{border-top:1.5px solid #333;margin:30px 20px 6px;font-size:10px;color:#555;text-align:center;padding-top:6px;}
+    .footer{background:#922b21;color:rgba(255,255,255,.5);font-size:8px;text-align:center;padding:8px;}
+    @media print{body{background:white;padding:0;}.boleta{box-shadow:none;width:100%;border-radius:0;}}
+  </style></head><body>
+  <div class="boleta">
+    <div class="header">
+      <h1>IE N.° 0148<br>MAESTRO VÍCTOR RAÚL HAYA DE LA TORRE</h1>
+      <p>Sistema AsistenciaQR — Boleta de Justificación</p>
+    </div>
+    <div class="sello">✅ JUSTIFICACIÓN VÁLIDA — 48 HORAS</div>
+    <div class="body">
+      <div class="field"><label>Estudiante</label><value>${j.nombre}</value></div>
+      <div class="field"><label>Grado y Sección</label><value>${j.grado} Secundaria — Sección ${j.seccion}</value></div>
+      <div class="field"><label>Fecha de inasistencia</label><value>${j.fecha}</value></div>
+      <div class="field"><label>Motivo</label><value>${motLabels[j.motivo]||j.motivo}</value></div>
+      <div class="field"><label>Descripción</label><value style="font-weight:400;font-size:12px;">${j.detalle||'—'}</value></div>
+      <hr class="divider">
+      <div class="field"><label>Validado por</label><value>${j.validadoPor||sesion?.nombre||'Tutor'}</value></div>
+      <div class="field"><label>Fecha y hora de validación</label><value>${fmtFecha(ahora)} ${fmtHora(ahora)}</value></div>
+      <div class="vence">
+        <div class="v-lbl">⏰ Válido hasta</div>
+        <div class="v-val">${fmtFecha(vence)} ${fmtHora(vence)}</div>
+      </div>
+      <div class="nota">
+        <strong>IMPORTANTE:</strong> Con esta boleta acérquese a la institución educativa para regularizar la inasistencia. Válida por <strong>48 horas</strong> desde la validación. Pasado ese tiempo no tendrá validez.
+      </div>
+      <div class="firma">${j.validadoPor||sesion?.nombre||'Tutor'}<br>Docente Validador — IE N.° 0148</div>
+    </div>
+    <div class="footer">Generado: ${fmtFecha(ahora)} ${fmtHora(ahora)} — Sistema AsistenciaQR Firebase</div>
+  </div>
+  <script>window.onload=()=>setTimeout(()=>window.print(),600);<\/script>
+  </body></html>`;
+  const w=window.open('','_blank');
+  w.document.write(html); w.document.close();
 }
 
 function verEvidencia(src) {
@@ -1677,7 +1831,7 @@ async function actualizarStats() {
     const todos=await fsGetAll('estudiantes');
     const fecha=getFecha();
     const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
-    const presSet=new Set(asist.map(a=>a.estudianteId));
+    const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
     const justifs=await fsGetAll('justificaciones');
     const pendientes=justifs.filter(j=>j.estado==='pendiente'||j.estado==='alerta').length;
     const total=todos.length, presentes=[...presSet].filter(id=>todos.find(e=>e.id===id)).length;
@@ -1748,31 +1902,110 @@ function renderChartGrado(labels,data) {
 }
 
 async function exportarExcel() {
-  const estudiantes=await fsGetAll('estudiantes');
+  const grado=document.getElementById('rGrado')?.value||'';
+  const seccion=document.getElementById('rSeccion')?.value||'';
+  const fi=document.getElementById('rFechaInicio')?.value;
+  const ff=document.getElementById('rFechaFin')?.value;
+  let estudiantes=await fsGetAll('estudiantes');
+  if(grado) estudiantes=estudiantes.filter(e=>e.grado===grado);
+  if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
   const asistencias=await fsGetAll('asistencia');
   const justifs=await fsGetAll('justificaciones');
   const fecha=getFecha();
-  let csv='Estudiante,Grado,Sección,DNI Apoderado,Fecha,Estado,Motivo Justificación\n';
+  const filtrarFecha=(f)=>{
+    if(!fi&&!ff) return true;
+    const p=f.split('/'); if(p.length!==3) return true;
+    const d=new Date(p[2],p[1]-1,p[0]);
+    if(fi&&d<new Date(fi)) return false;
+    if(ff&&d>new Date(ff+'T23:59:59')) return false;
+    return true;
+  };
+  // Agrupar por grado y sección
+  const grupos={};
   for(const e of estudiantes){
-    const asist=asistencias.filter(a=>a.estudianteId===e.id);
-    if(asist.length){
-      asist.forEach(a=>{
-        const j=justifs.find(x=>x.estudianteId===e.id&&x.fecha===a.fecha);
-        csv+=`"${e.nombre}","${e.grado}","${e.seccion}","${e.dniPadre}","${a.fecha}","Presente","${j?j.motivo:''}"\n`;
-      });
-    }else{
-      const j=justifs.find(x=>x.estudianteId===e.id&&x.fecha===fecha);
-      csv+=`"${e.nombre}","${e.grado}","${e.seccion}","${e.dniPadre}","${fecha}","Ausente","${j?j.motivo:''}"\n`;
-    }
+    const key=e.grado+'|'+e.seccion;
+    if(!grupos[key]) grupos[key]={grado:e.grado,seccion:e.seccion,estudiantes:[]};
+    grupos[key].estudiantes.push(e);
   }
-  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='Asistencia_Firebase_'+fecha.replace(/\//g,'-')+'.csv';
-  a.click();
-  notif('📥 Excel (CSV) descargado','success');
-}
+  const gradoOrden=['1ro','2do','3ro','4to','5to'];
+  const secOrden=['A','B','C','D','E'];
+  const claves=Object.keys(grupos).sort((a,b)=>{
+    const [ga,sa]=a.split('|'),[gb,sb]=b.split('|');
+    return (gradoOrden.indexOf(ga)-gradoOrden.indexOf(gb))||secOrden.indexOf(sa)-secOrden.indexOf(sb);
+  });
+  let html=`<html><head><meta charset="UTF-8"><style>
+    body{font-family:Arial,sans-serif;font-size:11px;margin:16px;}
+    h1{font-size:15px;color:#922b21;margin-bottom:2px;}
+    h2{font-size:11px;color:#666;margin-bottom:14px;}
+    h3{font-size:13px;color:#922b21;margin:22px 0 6px;border-bottom:2px solid #c0392b;padding-bottom:4px;}
+    table{width:100%;border-collapse:collapse;margin-bottom:8px;}
+    th{background:#922b21;color:white;padding:6px 8px;text-align:left;font-size:10px;}
+    td{padding:5px 8px;border-bottom:1px solid #eee;font-size:10px;}
+    tr:nth-child(even){background:#fdf5f5;}
+    .pres{color:#1a6b3a;font-weight:700;} .aus{color:#c0392b;font-weight:700;}
+    .resumen{display:flex;gap:18px;background:#fdf5f5;border:1px solid #f0d0d0;border-radius:6px;padding:10px;margin-bottom:10px;flex-wrap:wrap;}
+    .res-item{text-align:center;min-width:60px;}
+    .res-num{font-size:20px;font-weight:700;color:#922b21;}
+    .res-lbl{font-size:9px;color:#7a4f4f;text-transform:uppercase;}
+    .barra-wrap{margin:8px 0 14px;}
+    .barra-row{display:flex;align-items:center;gap:6px;margin-bottom:3px;font-size:9px;}
+    .barra{display:inline-block;height:10px;background:#c0392b;border-radius:2px;}
+    .footer{margin-top:20px;font-size:9px;color:#aaa;border-top:1px solid #eee;padding-top:6px;}
+    @media print{body{margin:6px;}h3{page-break-before:auto;}}
+  </style></head><body>
+  <h1>📚 IE N.° 0148 MAESTRO VÍCTOR RAÚL HAYA DE LA TORRE — Reporte de Asistencia</h1>
+  <h2>Filtro: ${grado||'Todos los grados'} ${seccion?'— Sección '+seccion:''} | Período: ${fi||'inicio'} al ${ff||'hoy'} | Generado: ${new Date().toLocaleString('es-PE')}</h2>`;
 
+  for(const key of claves){
+    const g=grupos[key];
+    const ids=new Set(g.estudiantes.map(e=>e.id));
+    const asistGrupo=asistencias.filter(a=>ids.has(a.estudianteId)&&filtrarFecha(a.fecha));
+    const fechasGrupo=[...new Set(asistGrupo.map(a=>a.fecha))].sort();
+    const totalEst=g.estudiantes.length;
+    const presHoy=asistencias.filter(a=>ids.has(a.estudianteId)&&a.fecha===fecha).length;
+    const ausHoy=totalEst-presHoy;
+    const pct=totalEst?Math.round(presHoy/totalEst*100):0;
+    html+=`<h3>📋 ${g.grado} Secundaria — Sección ${g.seccion}</h3>
+    <div class="resumen">
+      <div class="res-item"><div class="res-num">${totalEst}</div><div class="res-lbl">Total</div></div>
+      <div class="res-item"><div class="res-num" style="color:#1a6b3a">${presHoy}</div><div class="res-lbl">Presentes hoy</div></div>
+      <div class="res-item"><div class="res-num">${ausHoy}</div><div class="res-lbl">Ausentes hoy</div></div>
+      <div class="res-item"><div class="res-num">${pct}%</div><div class="res-lbl">Asistencia</div></div>
+    </div>`;
+    if(fechasGrupo.length){
+      const maxV=Math.max(...fechasGrupo.map(f=>asistGrupo.filter(a=>a.fecha===f).length),1);
+      html+=`<div class="barra-wrap"><strong style="font-size:9px;color:#555">📈 Asistencia por día (últimos ${Math.min(fechasGrupo.length,10)} días):</strong><br>`;
+      fechasGrupo.slice(-10).forEach(f=>{
+        const cnt=asistGrupo.filter(a=>a.fecha===f).length;
+        const w=Math.round((cnt/maxV)*130);
+        html+=`<div class="barra-row"><span style="min-width:72px">${f}</span><span class="barra" style="width:${w}px"></span><span>${cnt}/${totalEst} (${totalEst?Math.round(cnt/totalEst*100):0}%)</span></div>`;
+      });
+      html+=`</div>`;
+    }
+    const fechasMostrar=fechasGrupo.slice(-5);
+    html+=`<table><thead><tr><th>#</th><th>Apellidos y Nombres</th><th>DNI Apod.</th>`;
+    fechasMostrar.forEach(f=>{html+=`<th style="min-width:55px">${f}</th>`;});
+    html+=`<th>Hoy</th><th>Justificación</th></tr></thead><tbody>`;
+    g.estudiantes.sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach((e,i)=>{
+      const presHoyEst=asistencias.some(a=>a.estudianteId===e.id&&a.fecha===fecha);
+      const justHoy=justifs.find(j=>j.estudianteId===e.id&&j.fecha===fecha);
+      const motL={enfermedad:'Enfermedad',cita:'Cita médica',familiar:'Mot.familiar',otro:'Otro',alerta:'⚠️ ALERTA'};
+      html+=`<tr><td>${i+1}</td><td>${e.nombre}</td><td>${e.dniPadre||'—'}</td>`;
+      fechasMostrar.forEach(f=>{
+        const p=asistencias.some(a=>a.estudianteId===e.id&&a.fecha===f);
+        html+=`<td class="${p?'pres':'aus'}">${p?'✅':'❌'}</td>`;
+      });
+      html+=`<td class="${presHoyEst?'pres':'aus'}">${presHoyEst?'✅':'❌'}</td>`;
+      html+=`<td>${justHoy?(motL[justHoy.motivo]||justHoy.motivo)+' — '+(justHoy.estado||''):'—'}</td></tr>`;
+    });
+    html+=`</tbody></table>`;
+  }
+  html+=`<div class="footer">Sistema AsistenciaQR — IE N.° 0148 | ${new Date().toLocaleString('es-PE')}</div></body></html>`;
+  const w=window.open('','_blank');
+  w.document.write(html); w.document.close();
+  setTimeout(()=>w.print(),700);
+  notif('📥 Reporte por grado/sección listo para imprimir','success');
+}
 async function exportarPDF() {
   const estudiantes=await fsGetAll('estudiantes');
   const fecha=getFecha();
@@ -1976,11 +2209,47 @@ async function procesarFotoQR(input) {
 }
 
 async function procesarManual() {
-  let raw=document.getElementById('manualInput').value.trim();
-  if(!raw){notif('❌ Ingresa el ID','error');return;}
-  if(/^[a-zA-Z0-9]{15,}$/.test(raw)) raw=JSON.stringify({id:raw});
-  const ok=await registrarAsistencia(raw);
-  if(ok){document.getElementById('manualInput').value='';cerrarScanner();}
+  const q=document.getElementById('manualInput').value.trim().toLowerCase();
+  if(!q){notif('❌ Ingresa el nombre del estudiante','error');return;}
+  const todos=_estudiantesCache.length?_estudiantesCache:await fsGetAll('estudiantes');
+  const found=todos.filter(e=>e.nombre.toLowerCase().includes(q));
+  const c=document.getElementById('manualResultados');
+  if(!found.length){c.innerHTML='<div style="color:var(--rojo);font-size:12px;margin-top:8px;">❌ No se encontró ningún estudiante</div>';return;}
+  const fecha=getFecha();
+  const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
+  const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
+  c.innerHTML=found.slice(0,8).map(e=>{
+    const pres=presSet.has(e.id);
+    const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\'");
+    return `<div style="background:var(--gris-bg);border:1.5px solid var(--borde);border-radius:10px;padding:10px 12px;margin-top:8px;">
+      <div style="font-weight:700;font-size:13px;">${e.nombre}</div>
+      <div style="font-size:11px;color:var(--texto-suave);margin-bottom:8px;">${e.grado} — Sección ${e.seccion}</div>
+      <div style="display:flex;gap:6px;">
+        ${pres
+          ? '<span class="badge badge-green" style="font-size:11px;">✅ Ya registrado presente</span>'
+          : `<button class="btn btn-success btn-sm" onclick="registrarManualPresente('${qrStr}')">✅ Marcar Presente</button>
+             <button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\'")}','${e.grado}','${e.seccion}')">❌ Marcar Ausente</button>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function registrarManualPresente(qrStr) {
+  const ok=await registrarAsistencia(qrStr);
+  if(ok){document.getElementById('manualInput').value='';document.getElementById('manualResultados').innerHTML='';cerrarScanner();}
+}
+
+async function registrarManualAusente(id,nombre,grado,seccion) {
+  const fecha=getFecha();
+  const hora=new Date().toLocaleTimeString('es-PE');
+  const existe=await fsQuery('asistencia',FB.where('fecha','==',fecha),FB.where('estudianteId','==',id));
+  if(existe.length){notif('⚠️ Ya tiene registro hoy','warning');return;}
+  await fsAdd('asistencia',{estudianteId:id,nombre,grado,seccion,fecha,hora,estado:'ausente',registradoPor:'manual'});
+  notif('❌ Ausencia registrada: '+nombre,'info');
+  document.getElementById('manualInput').value='';
+  document.getElementById('manualResultados').innerHTML='';
+  cerrarScanner();
 }
 
 function cerrarScanner() {
