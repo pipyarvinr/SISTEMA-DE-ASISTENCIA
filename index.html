@@ -1078,12 +1078,17 @@ function entrarApp() {
   todos.forEach(n => { const el=document.getElementById(n); if(el) el.style.display=''; });
 
   if (sesion.rol === 'padre') {
+    // Ocultar sidebar escritorio
     ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    // Ocultar barra móvil — solo mostrar "Mi Hijo"
+    ['mn_admin','mn_asistencia','mn_justificaciones','mn_reportes'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('timerBanner').style.display = 'none';
   } else if (sesion.rol === 'tutor' || sesion.rol === 'auxiliar') {
     ['nav_admin','nav_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['mn_admin','mn_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
   } else if (sesion.rol === 'admin') {
     document.getElementById('nav_padre').style.display = 'none';
+    document.getElementById('mn_padre').style.display = 'none';
   }
 
   const hints = { admin:'<strong>👑 Administrador</strong>Gestión completa del sistema.', auxiliar:'<strong>🛡️ Auxiliar</strong>Registra asistencia y justificaciones.', tutor:'<strong>📖 Tutor</strong>Revisa tu aula y aprueba justificaciones.', padre:'<strong>👪 Apoderado</strong>Consulta la asistencia de tu hijo.' };
