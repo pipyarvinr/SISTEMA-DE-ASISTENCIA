@@ -2704,9 +2704,9 @@ function tickScan() {
     return;
   }
 
-  // Escanear cada 3 frames (reduce efecto moiré con pantallas y ahorra CPU)
+  // Escanear cada 2 frames (balance entre velocidad y carga CPU)
   _scanFrameCount++;
-  if(_scanFrameCount % 3 !== 0){
+  if(_scanFrameCount % 2 !== 0){
     scannerRaf=requestAnimationFrame(tickScan);
     return;
   }
@@ -2737,13 +2737,24 @@ function tickScan() {
     code = jsQR(boosted.data, boosted.width, boosted.height, {inversionAttempts:'attemptBoth'});
   }
 
-  // Intento 3: recorte central (descarta bordes ruidosos, enfoca centro donde está el QR)
+  // Intento 3: recorte central (descarta bordes ruidosos)
   if(!code) {
     const cx = Math.floor(v.videoWidth*0.15), cy = Math.floor(v.videoHeight*0.15);
     const cw = Math.floor(v.videoWidth*0.7),  ch = Math.floor(v.videoHeight*0.7);
     try {
       const cropped = scannerCtx.getImageData(cx, cy, cw, ch);
       code = jsQR(cropped.data, cropped.width, cropped.height, {inversionAttempts:'attemptBoth'});
+    } catch(e) {}
+  }
+
+  // Intento 4: imagen reducida al 50% (ayuda cuando el QR es grande en cámara)
+  if(!code) {
+    const sw = Math.floor(scannerCanvas.width/2), sh = Math.floor(scannerCanvas.height/2);
+    const sc = document.createElement('canvas'); sc.width=sw; sc.height=sh;
+    sc.getContext('2d').drawImage(scannerCanvas,0,0,sw,sh);
+    try {
+      const sd = sc.getContext('2d').getImageData(0,0,sw,sh);
+      code = jsQR(sd.data,sd.width,sd.height,{inversionAttempts:'attemptBoth'});
     } catch(e) {}
   }
 
@@ -2772,42 +2783,85 @@ function tickScan() {
   scannerRaf=requestAnimationFrame(tickScan);
 }
 
-// Boost de contraste para ayudar con QR en pantallas brillantes
+// Boost de contraste adaptativo — umbral calculado del promedio de la imagen
+// (mejor que umbral fijo 128, funciona con distintas condiciones de luz)
 function boostContraste(imgData) {
   const data = new Uint8ClampedArray(imgData.data);
-  for(let i=0; i<data.length; i+=4){
-    // Convertir a gris
+  // Paso 1: calcular brillo promedio de la imagen
+  let suma = 0;
+  const total = data.length / 4;
+  for (let i = 0; i < data.length; i += 4) {
+    suma += 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+  }
+  const umbral = suma / total; // umbral adaptativo
+  // Paso 2: binarizar con ese umbral
+  for (let i = 0; i < data.length; i += 4) {
     const gray = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
-    // Umbral duro: blanco o negro (binarización)
-    const val = gray > 128 ? 255 : 0;
-    data[i]=val; data[i+1]=val; data[i+2]=val;
+    const val  = gray > umbral ? 255 : 0;
+    data[i] = val; data[i+1] = val; data[i+2] = val;
   }
   return new ImageData(data, imgData.width, imgData.height);
 }
 
 async function procesarFotoQR(input) {
-  const file=input.files[0]; if(!file) return;
-  document.getElementById('photoStatus').textContent='⏳ Procesando imagen…';
-  document.getElementById('photoPreview').style.display='block';
-  try{await cargarJsQR();}catch{document.getElementById('photoStatus').textContent='❌ Sin conexión';return;}
-  const url=URL.createObjectURL(file);
-  const img=document.getElementById('photoImg');
-  img.src=url;
-  await new Promise(r=>{img.onload=r;});
-  const c=document.createElement('canvas');
-  c.width=img.naturalWidth; c.height=img.naturalHeight;
-  const ctx=c.getContext('2d',{willReadFrequently:true});
-  ctx.drawImage(img,0,0);
+  const file = input.files[0]; if (!file) return;
+  const statusEl = document.getElementById('photoStatus');
+  const resEl    = document.getElementById('photoResult');
+  statusEl.textContent = '⏳ Procesando imagen…';
+  resEl.innerHTML = '';
+  document.getElementById('photoPreview').style.display = 'block';
+  try { await cargarJsQR(); } catch { statusEl.textContent = '❌ Sin conexión para cargar escáner'; return; }
+
+  const url = URL.createObjectURL(file);
+  const imgEl = document.getElementById('photoImg');
+  imgEl.src = url;
+  await new Promise(r => { imgEl.onload = r; });
   URL.revokeObjectURL(url);
-  let imgData; try{imgData=ctx.getImageData(0,0,c.width,c.height);}catch{document.getElementById('photoStatus').textContent='❌ No se pudo leer imagen';return;}
-  const code=jsQR(imgData.data,imgData.width,imgData.height,{inversionAttempts:'attemptBoth'});
-  const res=document.getElementById('photoResult');
-  if(!code){res.innerHTML='<span style="color:var(--rojo)">❌ No se encontró QR en la imagen</span>';document.getElementById('photoStatus').textContent='';return;}
-  res.innerHTML='<span style="color:var(--verde)">✅ QR detectado</span>';
-  document.getElementById('photoStatus').textContent='';
-  const ok=await registrarAsistencia(code.data);
-  if(ok){res.innerHTML='<span style="color:#c0392b">✅ Asistencia registrada en Firebase</span>';setTimeout(()=>cerrarScanner(),1200);}
-  else{res.innerHTML='<span style="color:var(--naranja)">⚠️ Ya registrado o no encontrado</span>';}
+
+  const OW = imgEl.naturalWidth, OH = imgEl.naturalHeight;
+
+  // [FIX PRINCIPAL] Las fotos de celular son 4000px+. jsQR falla porque
+  // el patrón QR queda microscópico. Probar en varios tamaños descendentes.
+  const escalas = [];
+  const tamaños = [1400, 900, 600];
+  for (const MAX of tamaños) {
+    if (OW > MAX || OH > MAX) {
+      const r = Math.min(MAX/OW, MAX/OH);
+      escalas.push({ w: Math.round(OW*r), h: Math.round(OH*r) });
+    }
+  }
+  escalas.push({ w: OW, h: OH }); // original como último recurso
+
+  const tmpCanvas = document.createElement('canvas');
+  const tmpCtx    = tmpCanvas.getContext('2d', { willReadFrequently: true });
+
+  let code = null;
+  for (const esc of escalas) {
+    tmpCanvas.width  = esc.w;
+    tmpCanvas.height = esc.h;
+    tmpCtx.drawImage(imgEl, 0, 0, esc.w, esc.h);
+    let imgData;
+    try { imgData = tmpCtx.getImageData(0, 0, esc.w, esc.h); } catch { continue; }
+
+    // Intento A: imagen tal cual
+    code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'attemptBoth' });
+    if (code) break;
+
+    // Intento B: binarización (ayuda con fondos con brillo variable)
+    const bin = boostContraste(imgData);
+    code = jsQR(bin.data, bin.width, bin.height, { inversionAttempts: 'attemptBoth' });
+    if (code) break;
+  }
+
+  statusEl.textContent = '';
+  if (!code) {
+    resEl.innerHTML = '<span style="color:var(--rojo)">❌ No se encontró QR. Acerca más la cámara al código y vuelve a intentar.</span>';
+    return;
+  }
+  resEl.innerHTML = '<span style="color:var(--verde)">✅ QR detectado</span>';
+  const ok = await registrarAsistencia(code.data);
+  if (ok) { resEl.innerHTML = '<span style="color:var(--verde)">✅ Asistencia registrada</span>'; setTimeout(() => cerrarScanner(), 1200); }
+  else     { resEl.innerHTML = '<span style="color:var(--naranja)">⚠️ Ya registrado o no encontrado</span>'; }
 }
 
 async function procesarManual() {
