@@ -121,36 +121,49 @@ function escapeHtml(str) {
   return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-// ══ GENERADOR QR — qrcode.js (librería estándar confiable) ══
+// ══ GENERADOR QR — implementación propia confiable ══
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
-// Renombrar QRCode de la librería ANTES de que el adaptador lo sobreescriba
-window.__qrlib_load = document.createElement('script');
-window.__qrlib_load.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
-window.__qrlib_load.onload = function(){ window._QRLIB = window.QRCode; };
-document.head.appendChild(window.__qrlib_load);
-</script>
-<script>
-// Adaptador QRCode
-const QRCode = (function(){
-  function getLib(){ return window._QRLIB || null; }
-  return {
-    toCanvas: function(canvas, text, opts, cb) {
-      if (typeof opts==='function'){cb=opts;opts={};}
-      opts=opts||{};
-      const lib=getLib();
-      if(!lib){if(cb)cb(new Error('QR lib no cargada'));return;}
-      lib.toCanvas(canvas,text,{width:opts.width||200,margin:opts.margin!=null?opts.margin:2,errorCorrectionLevel:opts.errorCorrectionLevel||'M',color:opts.color||{dark:'#000000',light:'#ffffff'}}).then(()=>{if(cb)cb(null);}).catch(e=>{if(cb)cb(e);});
-    },
-    toDataURL: function(text, opts, cb) {
-      if (typeof opts==='function'){cb=opts;opts={};}
-      opts=opts||{};
-      const lib=getLib();
-      if(!lib){if(cb)cb(new Error('QR lib no cargada'));return;}
-      lib.toDataURL(text,{width:opts.width||200,margin:opts.margin!=null?opts.margin:2,errorCorrectionLevel:opts.errorCorrectionLevel||'M',color:opts.color||{dark:'#000000',light:'#ffffff'}}).then(url=>{if(cb)cb(null,url);}).catch(e=>{if(cb)cb(e);});
-    }
-  };
-})();
+// qrcodejs se carga como window.QRCode — lo capturamos inmediatamente
+const _QRNative = window.QRCode;
+// Adaptador compatible con el resto del código
+const QRCode = {
+  toCanvas: function(canvas, text, opts, cb) {
+    if (typeof opts==='function'){cb=opts;opts={};}
+    opts=opts||{};
+    try {
+      const size = opts.width || 200;
+      const tmp = document.createElement('div');
+      tmp.style.cssText = 'position:absolute;left:-9999px;top:-9999px;';
+      document.body.appendChild(tmp);
+      const qr = new _QRNative(tmp, {
+        text: text, width: size, height: size,
+        colorDark: (opts.color&&opts.color.dark)||'#000000',
+        colorLight: (opts.color&&opts.color.light)||'#ffffff',
+        correctLevel: _QRNative.CorrectLevel.M
+      });
+      setTimeout(function(){
+        const src = tmp.querySelector('canvas') || tmp.querySelector('img');
+        if (src) {
+          canvas.width = size; canvas.height = size;
+          const ctx = canvas.getContext('2d');
+          if (src.tagName==='CANVAS') { ctx.drawImage(src,0,0,size,size); document.body.removeChild(tmp); if(cb) cb(null); }
+          else { src.onload=function(){ ctx.drawImage(src,0,0,size,size); document.body.removeChild(tmp); if(cb) cb(null); }; if(src.complete){ ctx.drawImage(src,0,0,size,size); document.body.removeChild(tmp); if(cb) cb(null); } }
+        } else { document.body.removeChild(tmp); if(cb) cb(new Error('sin src')); }
+      }, 100);
+    } catch(e) { if(cb) cb(e); }
+  },
+  toDataURL: function(text, opts, cb) {
+    if (typeof opts==='function'){cb=opts;opts={};}
+    opts=opts||{};
+    const canvas = document.createElement('canvas');
+    QRCode.toCanvas(canvas, text, opts, function(err){
+      if(err){ if(cb) cb(err); return; }
+      if(cb) cb(null, canvas.toDataURL('image/png'));
+    });
+  }
+};
 </script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
