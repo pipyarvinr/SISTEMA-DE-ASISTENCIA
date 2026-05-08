@@ -1154,6 +1154,22 @@ async function agregarEstudiante() {
   } catch(e) { notif('❌ Error al guardar: '+e.message,'error'); }
 }
 
+// Observer global para generar QRs solo cuando son visibles
+let _qrObserver = null;
+function _setupQrObserver() {
+  if (_qrObserver) { _qrObserver.disconnect(); }
+  _qrObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (!entry.isIntersecting) return;
+      const el = entry.target;
+      const id = el.dataset.qrid;
+      const est = _estudiantesCache.find(e => e.id === id);
+      if (est) generarQR(id, est);
+      _qrObserver.unobserve(el);
+    });
+  }, { rootMargin: '200px' }); // pre-cargar 200px antes de que sean visibles
+}
+
 async function renderEstudiantes() {
   const c = document.getElementById('listaEstudiantes');
   if (!c) return;
@@ -1172,25 +1188,26 @@ async function renderEstudiantes() {
     <div class="student-card ${presSet.has(e.id)?'presente':''}">
       <div class="student-name">${e.nombre}</div>
       <div class="student-grade">${e.grado} — Sección ${e.seccion}</div>
-      <div class="qr-container" id="qr_${e.id}"></div>
+      <div class="qr-container" id="qr_${e.id}" data-qrid="${e.id}"></div>
       <small style="color:var(--texto-suave);font-size:10px;">DNI apod: ${e.dniPadre}</small>
       <div style="margin-top:7px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
         <button class="btn btn-sm" style="background:#c0392b;color:white;" onclick="descargarQR('${e.id}')">📥 QR</button>
         <button class="btn btn-danger btn-sm" onclick="eliminarEstudiante('${e.id}')">🗑</button>
       </div>
     </div>`).join('');
-  lista.forEach(e => generarQRConReintento(e.id, e));
+  // Usar IntersectionObserver: genera QR solo cuando la tarjeta es visible
+  _setupQrObserver();
+  lista.forEach(e => {
+    const el = document.getElementById('qr_' + e.id);
+    if (el) _qrObserver.observe(el);
+  });
 }
 
-function generarQRConReintento(id, estudiante, intentos = 0) {
-  const el = document.getElementById('qr_' + id);
-  if (!el) {
-    if (intentos < 20) setTimeout(() => generarQRConReintento(id, estudiante, intentos + 1), 100);
-    return;
-  }
-  if (el.querySelector('canvas') || el.querySelector('img')) return;
+function generarQR(id, estudiante) {
+  const el = document.getElementById('qr_'+id);
+  if (!el || el.querySelector('canvas') || el.querySelector('img')) return;
   new QRCode(el, {
-    text: JSON.stringify({id, nombre: estudiante.nombre, grado: estudiante.grado, seccion: estudiante.seccion}),
+    text: JSON.stringify({id, nombre:estudiante.nombre, grado:estudiante.grado, seccion:estudiante.seccion}),
     width: 76, height: 76, correctLevel: QRCode.CorrectLevel.M
   });
 }
@@ -1206,8 +1223,18 @@ async function descargarQR(id) {
   const e = _estudiantesCache.find(x=>x.id===id) || await fsGet('estudiantes', id);
   if (!e) return;
   const qrEl = document.getElementById('qr_'+id);
-  const qrCanvas = qrEl?.querySelector('canvas');
-  if (!qrCanvas) { notif('❌ Espera a que se genere el QR','error'); return; }
+  let qrCanvas = qrEl?.querySelector('canvas');
+  if (!qrCanvas) {
+    // Generar QR en memoria si no está en el DOM todavía
+    const dataUrl = await _generarQRDataURL(JSON.stringify({id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}), 180);
+    if (!dataUrl) { notif('❌ Error al generar el QR','error'); return; }
+    // Crear canvas temporal a partir del dataURL
+    const img = new Image(); img.src = dataUrl;
+    await new Promise(r => { img.onload = r; });
+    qrCanvas = document.createElement('canvas');
+    qrCanvas.width = 180; qrCanvas.height = 180;
+    qrCanvas.getContext('2d').drawImage(img, 0, 0);
+  }
   const W=320,H=400;
   const card = document.createElement('canvas');
   card.width=W; card.height=H;
@@ -1245,21 +1272,56 @@ async function descargarQR(id) {
   notif('📥 Tarjeta QR descargada','success');
 }
 
+function _generarQRDataURL(texto, size) {
+  // Genera un QR en un div temporal oculto y retorna el dataURL
+  return new Promise(resolve => {
+    const tmp = document.createElement('div');
+    tmp.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
+    document.body.appendChild(tmp);
+    try {
+      new QRCode(tmp, { text: texto, width: size, height: size, correctLevel: QRCode.CorrectLevel.M });
+      // QRCode es síncrono para canvas
+      const canvas = tmp.querySelector('canvas');
+      const img = tmp.querySelector('img');
+      if (canvas) { resolve(canvas.toDataURL('image/png')); }
+      else if (img) { img.onload = () => resolve(img.src); img.onerror = () => resolve(''); if (img.complete) resolve(img.src); }
+      else resolve('');
+    } catch(e) { resolve(''); }
+    finally { document.body.removeChild(tmp); }
+  });
+}
+
 async function imprimirQR() {
   let lista = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
   const gf = document.getElementById('fGradoAdmin')?.value;
   const sf = document.getElementById('fSecAdmin')?.value;
   const filtrada = lista.filter(e=>(!gf||e.grado===gf)&&(!sf||e.seccion===sf));
+  if (!filtrada.length) { notif('❌ No hay estudiantes para imprimir','error'); return; }
+  notif('⏳ Generando QRs… espera un momento','info');
+  // Generar todos los QRs en memoria, en lotes para no bloquear el navegador
+  const LOTE = 20;
+  const qrMap = {};
+  for (let i = 0; i < filtrada.length; i += LOTE) {
+    const lote = filtrada.slice(i, i + LOTE);
+    await Promise.all(lote.map(async e => {
+      // Intentar reutilizar canvas del DOM si ya existe
+      const domCanvas = document.getElementById('qr_'+e.id)?.querySelector('canvas');
+      if (domCanvas) { qrMap[e.id] = domCanvas.toDataURL('image/png'); }
+      else { qrMap[e.id] = await _generarQRDataURL(JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}), 130); }
+    }));
+    // Pequeña pausa entre lotes para no congelar la UI
+    await new Promise(r => setTimeout(r, 10));
+  }
   const rows = filtrada.map(e=>{
-    const qrEl=document.getElementById('qr_'+e.id);
-    const qrCanvas=qrEl?.querySelector('canvas');
-    const qrSrc=qrCanvas?qrCanvas.toDataURL('image/png'):'';
+    const qrSrc = qrMap[e.id] || '';
     return `<div class="tarjeta"><div class="hdr"><div class="colegio">IE N.° 0148<br>MAESTRO V.R. HAYA DE LA TORRE</div><div class="sub">Tarjeta de Asistencia</div></div><div class="qr-wrap"><img src="${qrSrc}" width="130" height="130"></div><div class="sep"></div><div class="id-txt">ID: ${e.id.substring(0,8)}</div><div class="nombre">${e.nombre}</div><div class="grado">${e.grado} Sec. · Sección ${e.seccion}</div><div class="ftr">IE N.° 0148 — Uso interno</div></div>`;
   }).join('');
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;background:white;padding:10px;}.grid{display:flex;flex-wrap:wrap;gap:8px;}.tarjeta{width:200px;border-radius:12px;overflow:hidden;border:1px solid #d4ddd6;background:white;page-break-inside:avoid;}.hdr{background:#0f3d22;color:white;padding:10px;text-align:center;border-bottom:4px solid #2ecc71;}.colegio{font-size:7.5px;font-weight:bold;line-height:1.4;}.sub{font-size:8px;opacity:.7;margin-top:2px;}.qr-wrap{padding:12px;text-align:center;background:#f8f9f8;}.sep{height:1px;background:#e0e6e1;margin:0 12px;}.id-txt{font-size:9px;color:#9aaa9d;text-align:center;padding:6px 0 2px;font-family:monospace;}.nombre{font-size:12px;font-weight:bold;text-align:center;padding:2px 8px;color:#1c2b1e;}.grado{font-size:10px;font-weight:bold;color:#1a6b3a;text-align:center;padding:2px 0 8px;}.ftr{background:#0f3d22;color:rgba(255,255,255,.4);font-size:7px;text-align:center;padding:5px;}@media print{body{padding:0;}}</style></head><body><div class="grid">${rows}</div></body></html>`;
   const w=window.open('','_blank');
+  if (!w) { notif('❌ Bloqueo de ventana emergente — permite pop-ups','error'); return; }
   w.document.write(html); w.document.close();
-  setTimeout(()=>w.print(),600);
+  setTimeout(()=>w.print(),800);
+  notif('✅ '+filtrada.length+' tarjetas QR listas para imprimir','success');
 }
 
 async function registrarAsistencia(qrData) {
@@ -1776,6 +1838,7 @@ function switchScanTab(tab) {
 async function iniciarCamara() {
   document.getElementById('scanStatus').textContent='Iniciando cámara…';
   document.getElementById('camErrorBox').style.display='none';
+  // jsQR ya está cargado al inicio — no necesitamos cargarlo dinámicamente
   if(typeof jsQR === 'undefined') {
     document.getElementById('scanStatus').textContent='⚠️ Error cargando escáner — recarga la página';
     return;
