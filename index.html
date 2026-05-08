@@ -1162,6 +1162,12 @@ function entrarApp() {
 
   if (sesion.rol === 'admin') {
     irPanel('admin');
+    // Admin tiene sesión activa permanente — no necesita presionar ▶
+    if (!ventanaActiva) {
+      ventanaActiva = true;
+      tiempoRestante = 99 * 3600; // valor alto — admin no tiene límite
+      actualizarTimer();
+    }
     // Mostrar botón modo prueba solo para admin
     const btnPrueba = document.getElementById('btnModoPrueba');
     if (btnPrueba) btnPrueba.style.display = '';
@@ -1420,6 +1426,14 @@ function finalizarSesion() {
   notif('✅ Sesión finalizada','info');
 }
 function actualizarTimer() {
+  // Para admin con sesión permanente, mostrar indicador simple
+  if (sesion?.rol === 'admin' && tiempoRestante > 3600 * 10) {
+    document.getElementById('timerDisplay').textContent = '∞';
+    document.getElementById('progressFill').style.width = '100%';
+    document.getElementById('progressLabel').textContent = 'Admin — sin límite de tiempo';
+    document.getElementById('timerStatus').textContent = '🟢 Sesión activa';
+    return;
+  }
   const m = Math.floor(tiempoRestante/60).toString().padStart(2,'0');
   const s = (tiempoRestante%60).toString().padStart(2,'0');
   document.getElementById('timerDisplay').textContent = m+':'+s;
@@ -1609,7 +1623,11 @@ async function imprimirQR() {
 // ASISTENCIA
 // ══════════════════════════════════════════════════════
 async function registrarAsistencia(qrData) {
-  if (!ventanaActiva && sesion?.rol !== 'admin') { notif('⏰ Inicia la sesión primero (botón ▶)','error'); return false; }
+  // Admin siempre puede registrar. Auxiliar/tutor necesitan sesión activa.
+  if (!ventanaActiva && sesion?.rol !== 'admin') {
+    notif('⏰ Presiona ▶ "Iniciar" primero para activar la sesión de asistencia','error');
+    return false;
+  }
   try {
     let estudianteId, nombre='', grado='', seccion='';
     // Soporta QR con solo el ID (nuevo formato) o JSON (formato antiguo)
@@ -2616,7 +2634,9 @@ async function abrirScanner() {
   const h = new Date().getHours(), m = new Date().getMinutes();
   const dentroVentana = (h === 13) || (h === 14 && m === 0);
   const banner = document.getElementById('scannerHorarioBanner');
-  if (banner) banner.style.display = (!dentroVentana && !ventanaActiva && sesion?.rol !== 'admin') ? '' : 'none';
+  // Admin nunca ve el banner de horario
+  const mostrarBanner = sesion?.rol !== 'admin' && !dentroVentana && !ventanaActiva;
+  if (banner) banner.style.display = mostrarBanner ? '' : 'none';
   switchScanTab('camera');
 }
 
@@ -2697,8 +2717,19 @@ function tickScan() {
     Object.assign(flash.style,{position:'absolute',inset:'0',background:'rgba(192,57,43,.5)',borderRadius:'12px',pointerEvents:'none',animation:'fadeOut .7s ease forwards'});
     document.getElementById('scannerView').appendChild(flash);
     registrarAsistencia(code.data).then(ok=>{
-      if(ok) setTimeout(()=>cerrarScanner(),800);
-      else setTimeout(()=>{escaneando=true;tickScan();},1800);
+      if(ok) {
+        setTimeout(()=>cerrarScanner(),800);
+      } else {
+        // Mostrar error en el scanner y reanudar después de 2s
+        document.getElementById('scanStatus').textContent='⚠️ No se pudo registrar — intenta de nuevo';
+        setTimeout(()=>{
+          if(document.getElementById('scannerModal').classList.contains('open')){
+            escaneando=true;
+            document.getElementById('scanStatus').textContent='🟢 Apunta al código QR del estudiante';
+            tickScan();
+          }
+        },2000);
+      }
     });
     return;
   }
