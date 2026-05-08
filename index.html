@@ -144,6 +144,7 @@ return{toCanvas,toDataURL};
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 
 <!-- ══ FIREBASE ══ -->
@@ -795,9 +796,14 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
       <label for="photoInput" class="upload-zone">
         <div style="font-size:2.2em;margin-bottom:8px;">📷</div>
         <div style="font-weight:700;font-size:13px;margin-bottom:3px;">Toca para tomar foto o elegir de galería</div>
+        <div style="font-size:11px;color:var(--texto-suave)">Asegúrate que el QR ocupe al menos 1/3 de la foto</div>
       </label>
-      <input type="file" id="photoInput" accept="image/*" style="display:none;" onchange="procesarFotoQR(this)">
-      <div id="photoPreview" class="upload-preview"><img id="photoImg" alt=""><div id="photoResult" style="margin-top:8px;font-size:13px;font-weight:600;"></div></div>
+      <input type="file" id="photoInput" accept="image/*" capture="environment" style="display:none;" onchange="procesarFotoQR(this)">
+      <div id="photoPreview" class="upload-preview">
+        <img id="photoImg" alt="" style="max-width:100%;max-height:220px;border-radius:10px;border:2px solid var(--borde);object-fit:contain;">
+        <div id="photoResult" style="margin-top:8px;font-size:13px;font-weight:600;"></div>
+        <div id="photoDebug" style="margin-top:6px;font-size:10px;color:var(--texto-suave);font-family:monospace;display:none;"></div>
+      </div>
       <div id="photoStatus" style="margin-top:8px;font-size:12px;text-align:center;color:var(--texto-suave);"></div>
     </div>
     <div id="spManual" style="display:none;padding:14px;">
@@ -1528,16 +1534,54 @@ function generarQR(id, estudiante) {
   if (!el) return;
   el.innerHTML = '';
   const canvas = document.createElement('canvas');
-  canvas.style.width = '120px';
+  canvas.style.width  = '120px';
   canvas.style.height = '120px';
   canvas.style.display = 'block';
   el.appendChild(canvas);
-  QRCode.toCanvas(canvas,
-    id,
-    { width:240, margin:2, errorCorrectionLevel:'H',
-      color:{dark:'#000000', light:'#ffffff'} },
-    function(err){ if(err) console.warn('QR error:', id, err); }
-  );
+
+  // Usar qrcode-generator (más fiable que el generador interno)
+  function _renderQR() {
+    if (window.qrcode) {
+      try {
+        const qr = qrcode(0, 'H'); // tipo 0 = auto-versión, corrección H (30%)
+        qr.addData(id);
+        qr.make();
+        const mods = qr.getModuleCount();
+        const size = 240;
+        const cell = size / mods;
+        canvas.width  = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, size, size);
+        ctx.fillStyle = '#000000';
+        for (let r = 0; r < mods; r++) {
+          for (let c = 0; c < mods; c++) {
+            if (qr.isDark(r, c)) {
+              ctx.fillRect(Math.floor(c*cell), Math.floor(r*cell), Math.ceil(cell), Math.ceil(cell));
+            }
+          }
+        }
+        return;
+      } catch(e) { console.warn('qrcode-generator error:', e); }
+    }
+    // Fallback al generador interno si qrcode-generator no cargó aún
+    QRCode.toCanvas(canvas, id,
+      { width:240, margin:2, errorCorrectionLevel:'H', color:{dark:'#000000', light:'#ffffff'} },
+      function(err){ if(err) console.warn('QR fallback error:', id, err); }
+    );
+  }
+
+  if (window.qrcode) {
+    _renderQR();
+  } else {
+    // Esperar a que cargue la librería
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';
+    s.onload = _renderQR;
+    s.onerror = _renderQR; // usar fallback si falla
+    document.head.appendChild(s);
+  }
 }
 
 async function eliminarEstudiante(id) {
@@ -1553,10 +1597,36 @@ async function descargarQR(id) {
   if (!e) return;
   notif('⏳ Generando tarjeta QR…','info');
 
-  // Generar QR en canvas temporal, independiente del DOM
+  // Generar QR en canvas temporal con qrcode-generator (más fiable)
   const qrCanvas = document.createElement('canvas');
   const qrText = id;
-  await new Promise((res,rej) => QRCode.toCanvas(qrCanvas, qrText, {width:280, margin:2, errorCorrectionLevel:'H'}, err => err?rej(err):res()));
+  await new Promise((res) => {
+    function _gen() {
+      if (window.qrcode) {
+        try {
+          const qr = qrcode(0, 'H');
+          qr.addData(qrText);
+          qr.make();
+          const mods = qr.getModuleCount();
+          const size = 280;
+          const cell = size / mods;
+          qrCanvas.width = size; qrCanvas.height = size;
+          const ctx2 = qrCanvas.getContext('2d');
+          ctx2.fillStyle = '#ffffff'; ctx2.fillRect(0,0,size,size);
+          ctx2.fillStyle = '#000000';
+          for (let r = 0; r < mods; r++)
+            for (let c = 0; c < mods; c++)
+              if (qr.isDark(r,c)) ctx2.fillRect(Math.floor(c*cell), Math.floor(r*cell), Math.ceil(cell), Math.ceil(cell));
+          res();
+          return;
+        } catch(e2) {}
+      }
+      // fallback generador interno
+      QRCode.toCanvas(qrCanvas, qrText, {width:280, margin:2, errorCorrectionLevel:'H'}, () => res());
+    }
+    if (window.qrcode) _gen();
+    else { const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js'; s.onload=_gen; s.onerror=_gen; document.head.appendChild(s); }
+  });
 
   const W=320,H=400;
   const card = document.createElement('canvas');
@@ -2889,8 +2959,10 @@ async function procesarFotoQR(input) {
   const file = input.files[0]; if (!file) return;
   const statusEl = document.getElementById('photoStatus');
   const resEl    = document.getElementById('photoResult');
+  const debugEl  = document.getElementById('photoDebug');
   statusEl.textContent = '⏳ Procesando imagen…';
   resEl.innerHTML = '';
+  if (debugEl) { debugEl.style.display = 'none'; debugEl.textContent = ''; }
   document.getElementById('photoPreview').style.display = 'block';
 
   // Mostrar preview y esperar que cargue completamente
@@ -2898,26 +2970,102 @@ async function procesarFotoQR(input) {
   const imgEl = document.getElementById('photoImg');
   imgEl.src = url;
   await new Promise(r => { imgEl.onload = r; imgEl.onerror = r; });
-
-  // Dibujar en canvas offline para garantizar compatibilidad con BarcodeDetector y jsQR
-  // Esto evita problemas con ImageBitmap en iOS/Safari y normaliza la fuente
-  const offCanvas = document.createElement('canvas');
-  offCanvas.width  = imgEl.naturalWidth  || imgEl.width  || 800;
-  offCanvas.height = imgEl.naturalHeight || imgEl.height || 600;
-  const offCtx = offCanvas.getContext('2d');
-  offCtx.drawImage(imgEl, 0, 0, offCanvas.width, offCanvas.height);
-
   URL.revokeObjectURL(url);
 
-  // leerQR() prueba BarcodeDetector primero, luego jsQR en múltiples escalas
+  const W = imgEl.naturalWidth  || imgEl.width  || 0;
+  const H = imgEl.naturalHeight || imgEl.height || 0;
+  const logs = [`Imagen: ${W}×${H}px, tipo: ${file.type}, tamaño: ${(file.size/1024).toFixed(0)}KB`];
+
+  if (!W || !H) {
+    statusEl.textContent = '';
+    resEl.innerHTML = '<span style="color:var(--rojo)">❌ No se pudo leer la imagen. Intenta con otra foto.</span>';
+    return;
+  }
+
   let qrData = null;
-  try { qrData = await leerQR(offCanvas); } catch(e) { console.warn('leerQR error:', e); }
+
+  // ── Método 1: BarcodeDetector nativo ──────────────────
+  if (window.BarcodeDetector && _barcodeDetector) {
+    try {
+      // Dibujar en canvas a tamaño original para BarcodeDetector
+      const bc = document.createElement('canvas');
+      bc.width = W; bc.height = H;
+      bc.getContext('2d').drawImage(imgEl, 0, 0, W, H);
+      const codes = await _barcodeDetector.detect(bc);
+      if (codes.length > 0) { qrData = codes[0].rawValue; logs.push('✅ BarcodeDetector nativo OK'); }
+      else logs.push(`BarcodeDetector: 0 códigos encontrados`);
+    } catch(e) { logs.push(`BarcodeDetector error: ${e.message}`); }
+  } else {
+    logs.push('BarcodeDetector: no disponible en este navegador');
+  }
+
+  // ── Método 2: jsQR en múltiples resoluciones ──────────
+  if (!qrData) {
+    try {
+      await cargarJsQR();
+      if (window.jsQR) {
+        // Probar desde tamaño muy pequeño hasta original — jsQR funciona mejor con imágenes pequeñas
+        const targets = [];
+        const maxDims = [300, 500, 800, 1200];
+        for (const m of maxDims) {
+          if (W > m || H > m) {
+            const r = Math.min(m/W, m/H);
+            targets.push([Math.round(W*r), Math.round(H*r)]);
+          }
+        }
+        targets.push([W, H]); // original al final
+
+        for (const [sw, sh] of targets) {
+          const c = document.createElement('canvas');
+          c.width = sw; c.height = sh;
+          const ctx = c.getContext('2d', { willReadFrequently: true });
+          ctx.drawImage(imgEl, 0, 0, sw, sh);
+          let imgData;
+          try { imgData = ctx.getImageData(0, 0, sw, sh); } catch(e) { continue; }
+
+          // A: imagen original
+          let code = jsQR(imgData.data, sw, sh, { inversionAttempts: 'attemptBoth' });
+          if (code) { qrData = code.data; logs.push(`✅ jsQR OK @ ${sw}×${sh} (original)`); break; }
+
+          // B: umbral por bloques
+          const bin = binarizarAdaptativo(imgData);
+          code = jsQR(bin.data, sw, sh, { inversionAttempts: 'attemptBoth' });
+          if (code) { qrData = code.data; logs.push(`✅ jsQR OK @ ${sw}×${sh} (binarizado)`); break; }
+
+          // C: contraste aumentado
+          const alto = aumentarContraste(imgData);
+          code = jsQR(alto.data, sw, sh, { inversionAttempts: 'attemptBoth' });
+          if (code) { qrData = code.data; logs.push(`✅ jsQR OK @ ${sw}×${sh} (contraste)`); break; }
+
+          logs.push(`jsQR @ ${sw}×${sh}: sin resultado`);
+        }
+        if (!qrData) logs.push('jsQR: ninguna escala funcionó');
+      } else {
+        logs.push('jsQR: no se pudo cargar la librería');
+      }
+    } catch(e) { logs.push(`jsQR error: ${e.message}`); }
+  }
+
+  // Mostrar debug siempre (ayuda a diagnosticar)
+  if (debugEl) {
+    debugEl.style.display = 'block';
+    debugEl.innerHTML = logs.map(l => `• ${l}`).join('<br>');
+  }
 
   statusEl.textContent = '';
   if (!qrData) {
-    resEl.innerHTML = '<span style="color:var(--rojo)">❌ No se encontró QR en la imagen.<br><small>Asegúrate de que el código QR esté visible y sin reflejos.</small></span>';
+    resEl.innerHTML = `
+      <span style="color:var(--rojo)">❌ No se detectó el QR.</span>
+      <div style="margin-top:8px;font-size:12px;color:var(--texto-suave);line-height:1.7;">
+        💡 <strong>Consejos:</strong><br>
+        • El QR debe ocupar <strong>al menos 1/3</strong> de la foto<br>
+        • Fondo blanco liso, sin sombras ni brillos<br>
+        • Foto tomada de frente, sin ángulo<br>
+        • Si la pantalla está muy oscura, aumenta el brillo
+      </div>`;
     return;
   }
+
   resEl.innerHTML = '<span style="color:var(--verde)">✅ QR detectado — registrando…</span>';
   const ok = await registrarAsistencia(qrData);
   if (ok) {
