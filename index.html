@@ -356,7 +356,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--gris-bg);min-height:100vh
 .student-card.justificado{background:#eaf4fb;border-color:var(--azul);}
 .student-name{font-size:12px;font-weight:700;color:var(--texto);margin-bottom:2px;}
 .student-grade{font-size:10px;color:var(--naranja);font-weight:700;margin-bottom:7px;}
-.qr-container{width:84px;height:84px;margin:6px auto;background:white;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;overflow:visible;}
+.qr-container{width:124px;height:124px;margin:6px auto;background:white;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;overflow:visible;padding:6px;box-shadow:0 0 0 3px white, 0 0 0 4px #e0c0c0;}
 
 /* ── BADGES ── */
 .badge{display:inline-block;padding:3px 9px;border-radius:99px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:5px;}
@@ -1528,13 +1528,13 @@ function generarQR(id, estudiante) {
   if (!el) return;
   el.innerHTML = '';
   const canvas = document.createElement('canvas');
-  canvas.style.width = '80px';
-  canvas.style.height = '80px';
+  canvas.style.width = '120px';
+  canvas.style.height = '120px';
   canvas.style.display = 'block';
   el.appendChild(canvas);
   QRCode.toCanvas(canvas,
     id,
-    { width:80, margin:1, errorCorrectionLevel:'M',
+    { width:240, margin:2, errorCorrectionLevel:'H',
       color:{dark:'#000000', light:'#ffffff'} },
     function(err){ if(err) console.warn('QR error:', id, err); }
   );
@@ -1556,7 +1556,7 @@ async function descargarQR(id) {
   // Generar QR en canvas temporal, independiente del DOM
   const qrCanvas = document.createElement('canvas');
   const qrText = id;
-  await new Promise((res,rej) => QRCode.toCanvas(qrCanvas, qrText, {width:180, margin:1, errorCorrectionLevel:'M'}, err => err?rej(err):res()));
+  await new Promise((res,rej) => QRCode.toCanvas(qrCanvas, qrText, {width:280, margin:2, errorCorrectionLevel:'H'}, err => err?rej(err):res()));
 
   const W=320,H=400;
   const card = document.createElement('canvas');
@@ -1608,7 +1608,7 @@ async function imprimirQR() {
     const qrText = e.id;
     let qrSrc = '';
     try {
-      qrSrc = await new Promise((res,rej) => QRCode.toDataURL(qrText, {width:130, margin:1, errorCorrectionLevel:'M'}, (err,url) => err?rej(err):res(url)));
+      qrSrc = await new Promise((res,rej) => QRCode.toDataURL(qrText, {width:200, margin:2, errorCorrectionLevel:'H'}, (err,url) => err?rej(err):res(url)));
     } catch(err) { console.warn('QR error:', e.id, err); }
     return `<div class="tarjeta"><div class="hdr"><div class="colegio">IE N.° 0148<br>MAESTRO V.R. HAYA DE LA TORRE</div><div class="sub">Tarjeta de Asistencia</div></div><div class="qr-wrap"><img src="${qrSrc}" width="130" height="130"></div><div class="sep"></div><div class="id-txt">ID: ${e.id.substring(0,8)}</div><div class="nombre">${e.nombre}</div><div class="grado">${e.grado} Sec. · Sección ${e.seccion}</div><div class="ftr">IE N.° 0148 — Uso interno</div></div>`;
   }));
