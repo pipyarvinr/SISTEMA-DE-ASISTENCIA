@@ -178,7 +178,9 @@ const db = getFirestore(app);
 
 window._fb = { auth, db, collection, doc, addDoc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously };
 window._fbReady = true;
+// Disparar el evento y también llamar directamente si el listener ya está listo
 document.dispatchEvent(new Event('fbready'));
+if (window._iniciarApp) window._iniciarApp(window._fb);
 </script>
 
 <style>
@@ -882,10 +884,12 @@ let _justificacionesCache = [];
 
 let _ignorarAuthChange = false;
 
-document.addEventListener('fbready', async () => {
-  FB = window._fb;
-  document.getElementById('splashScreen').style.display = 'none';
-  document.getElementById('loginScreen').style.display = 'flex';
+function _iniciarApp(fb) {
+  FB = fb;
+  const splash = document.getElementById('splashScreen');
+  if (splash) splash.style.display = 'none';
+  const loginScr = document.getElementById('loginScreen');
+  if (loginScr) loginScr.style.display = 'flex';
   FB.onAuthStateChanged(FB.auth, async (user) => {
     if (_ignorarAuthChange) return;
     if (user && sesion === null) {
@@ -900,15 +904,34 @@ document.addEventListener('fbready', async () => {
       } catch(e) { console.error('Auth error:', e); }
     }
   });
+  // Actualizar indicador de estado Firebase
+  const fbDot = document.querySelector('.fb-dot');
+  const fbStatus = document.getElementById('fbStatus');
+  if (fbDot && fbStatus) {
+    fbDot.style.background = '#2ecc71';
+    fbStatus.innerHTML = '<div class="fb-dot" style="background:#2ecc71"></div> Firebase Online';
+  }
+}
+
+document.addEventListener('fbready', () => {
+  if (window._fb) _iniciarApp(window._fb);
 });
 
+// Timeout de seguridad: si Firebase no cargó en 5s, mostrar login con mensaje de error
 setTimeout(() => {
   const splash = document.getElementById('splashScreen');
   if (splash && splash.style.display !== 'none') {
     splash.style.display = 'none';
-    document.getElementById('loginScreen').style.display = 'flex';
+    const loginScr = document.getElementById('loginScreen');
+    if (loginScr) loginScr.style.display = 'flex';
+    const err = document.getElementById('loginErr');
+    if (err) {
+      err.textContent = '⚠️ No se pudo conectar a Firebase. Verifica tu conexión a internet y recarga la página.';
+      err.style.display = 'block';
+    }
+    console.warn('Firebase no inicializó en 5 segundos');
   }
-}, 3000);
+}, 5000);
 
 async function crearAdminInicial() {
   const ADMIN_EMAIL = 'admin@ie0148.edu.pe';
@@ -1195,11 +1218,9 @@ async function renderEstudiantes() {
         <button class="btn btn-danger btn-sm" onclick="eliminarEstudiante('${e.id}')">🗑</button>
       </div>
     </div>`).join('');
-  // Usar IntersectionObserver: genera QR solo cuando la tarjeta es visible
-  _setupQrObserver();
+  // Generar todos los QRs de inmediato (no lazy) para que imprimirQR funcione correctamente
   lista.forEach(e => {
-    const el = document.getElementById('qr_' + e.id);
-    if (el) _qrObserver.observe(el);
+    generarQR(e.id, e);
   });
 }
 
@@ -1311,7 +1332,7 @@ async function imprimirQR() {
       // Intentar reutilizar canvas del DOM si ya existe
       const domCanvas = document.getElementById('qr_'+e.id)?.querySelector('canvas');
       if (domCanvas) { qrMap[e.id] = domCanvas.toDataURL('image/png'); }
-      else { qrMap[e.id] = await _generarQRDataURL(e.id, 130); // solo id: texto corto, siempre genera }
+      else { qrMap[e.id] = await _generarQRDataURL(e.id, 130); }
     }));
     // Pequeña pausa entre lotes para no congelar la UI
     await new Promise(r => setTimeout(r, 10));
