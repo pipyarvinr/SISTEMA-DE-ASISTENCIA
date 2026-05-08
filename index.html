@@ -128,6 +128,48 @@ import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, si
 import { getFirestore, collection, doc, addDoc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, Timestamp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
+/*
+ * ══════════════════════════════════════════════════════════
+ * CONFIGURACIÓN FIREBASE — PASOS OBLIGATORIOS ANTES DE USAR
+ * ══════════════════════════════════════════════════════════
+ * 1. PLAN BLAZE: Activa el plan de pago por uso en Firebase Console
+ *    (el plan gratuito no aguanta 800 usuarios simultáneos).
+ *
+ * 2. ADMIN: Crear usuario admin manualmente en:
+ *    Firebase Console → Authentication → Add user
+ *    Luego en Firestore → colección 'usuarios' → nuevo doc con id=uid:
+ *    { nombre: "Administrador", email: "...", rol: "admin", grados: [], secciones: [] }
+ *
+ * 3. ÍNDICES de Firestore necesarios (Firebase Console → Firestore → Indexes):
+ *    - Colección: estudiantes   Campo: dniPadre (Ascending)
+ *    - Colección: estudiantes   Campo: dniApoderado (Ascending)
+ *    - Colección: justificaciones  Campo: fecha (Ascending)
+ *    - Colección: asistencia    Campos: estudianteId + fecha (compuesto)
+ *
+ * 4. REGLAS DE FIRESTORE (Firebase Console → Firestore → Rules):
+ *    rules_version = '2';
+ *    service cloud.firestore {
+ *      match /databases/{db}/documents {
+ *        match /usuarios/{uid} {
+ *          allow read, write: if request.auth != null && request.auth.uid == uid;
+ *          allow read: if request.auth != null;
+ *        }
+ *        match /estudiantes/{id} {
+ *          allow read: if request.auth != null;
+ *          allow write: if request.auth != null &&
+ *            get(/databases/$(db)/documents/usuarios/$(request.auth.uid)).data.rol == 'admin';
+ *        }
+ *        match /asistencia/{id} {
+ *          allow read: if request.auth != null;
+ *          allow write: if request.auth != null;
+ *        }
+ *        match /justificaciones/{id} {
+ *          allow read, write: if request.auth != null;
+ *        }
+ *      }
+ *    }
+ * ══════════════════════════════════════════════════════════
+ */
 const firebaseConfig = {
   apiKey: "AIzaSyD56Nceo6QAnW2MlxyfSSS2MIId7zeNDxA",
   authDomain: "sistema-de-asistencia-c213a.firebaseapp.com",
@@ -448,8 +490,8 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
     </div>
     <button class="login-btn" id="loginBtn" onclick="hacerLogin()">🔐 Ingresar</button>
     <div class="login-hint" id="loginHint">
-      <strong>Admin inicial:</strong> <code>admin@ie0148.edu.pe</code> / <code>Admin1234</code><br>
-      <span style="color:#555">Se crea automáticamente la primera vez que abres el sistema.</span>
+      <strong>Acceso al sistema</strong><br>
+      <span style="color:#555">Ingresa con el correo y contraseña asignados por el administrador de la institución.</span>
     </div>
   </div>
 </div>
@@ -872,8 +914,7 @@ function _iniciarApp() {
   document.getElementById('splashScreen').style.display = 'none';
   document.getElementById('loginScreen').style.display = 'flex';
 
-  // Crear admin inicial en segundo plano
-  crearAdminInicial().catch(e => console.warn('crearAdminInicial bg:', e));
+  // Admin debe crearse manualmente desde la consola Firebase (ver nota de seguridad)
 
   // Escuchar cambios de auth (auto-login si había sesión activa)
   FB.onAuthStateChanged(FB.auth, async (user) => {
@@ -916,61 +957,12 @@ setTimeout(() => {
 }, 4000);
 
 // ══════════════════════════════════════════════════════
-// ADMIN INICIAL (se crea la primera vez, silenciosamente)
+// NOTA DE SEGURIDAD:
+// El usuario administrador debe crearse manualmente desde
+// la consola de Firebase (Authentication → Add user) y
+// asignarse el rol 'admin' en Firestore (colección 'usuarios').
+// NUNCA incluir credenciales hardcodeadas en el código fuente.
 // ══════════════════════════════════════════════════════
-async function crearAdminInicial() {
-  const ADMIN_EMAIL = 'admin@ie0148.edu.pe';
-  const ADMIN_PASS  = 'Admin1234';
-  try {
-    _ignorarAuthChange = true;
-    let uid = null;
-
-    // 1) Intentar login para verificar si el usuario existe en Auth
-    try {
-      const cred = await FB.signInWithEmailAndPassword(FB.auth, ADMIN_EMAIL, ADMIN_PASS);
-      uid = cred.user.uid;
-      console.log('✅ Auth admin ya existe, uid:', uid);
-    } catch(signInErr) {
-      const notFound = ['auth/user-not-found','auth/invalid-credential','auth/wrong-password'];
-      if (notFound.includes(signInErr.code)) {
-        // No existe en Auth → crearlo
-        try {
-          const cred = await FB.createUserWithEmailAndPassword(FB.auth, ADMIN_EMAIL, ADMIN_PASS);
-          uid = cred.user.uid;
-          console.log('✅ Admin Auth creado:', uid);
-        } catch(createErr) {
-          // Si ya existe pero con contraseña distinta, no podemos hacer nada aquí
-          console.warn('crearAdminInicial (create):', createErr.code, createErr.message);
-        }
-      } else {
-        console.warn('crearAdminInicial (signIn):', signInErr.code, signInErr.message);
-      }
-    }
-
-    // 2) Si obtuvimos UID, verificar/crear documento en Firestore
-    if (uid) {
-      const docRef = FB.doc(FB.db, 'usuarios', uid);
-      const snap = await FB.getDoc(docRef);
-      if (!snap.exists()) {
-        await FB.setDoc(docRef, {
-          nombre: 'Administrador',
-          email: ADMIN_EMAIL,
-          rol: 'admin',
-          grados: [],
-          secciones: [],
-          creadoEn: FB.serverTimestamp()
-        });
-        console.log('✅ Perfil Firestore del admin creado/reparado');
-      }
-      await FB.signOut(FB.auth);
-    }
-
-    _ignorarAuthChange = false;
-  } catch(e) {
-    _ignorarAuthChange = false;
-    console.warn('crearAdminInicial (general):', e.code, e.message);
-  }
-}
 
 // ══════════════════════════════════════════════════════
 // LOGIN
@@ -1036,40 +1028,30 @@ async function hacerLoginPadre() {
     }
     await FB.signInAnonymously(FB.auth);
 
-    // [MEJORA 6] Si caché está vacía, leer directamente de Firestore
-    let todos = _estudiantesCache.length ? _estudiantesCache : null;
-    if (!todos) {
-      try {
-        todos = await fsGetAll('estudiantes');
-        _estudiantesCache = todos;
-      } catch(fsErr) {
-        err.textContent = '❌ Error al conectar con Firestore. Verifica tu conexión.';
-        err.style.display = 'block';
-        btn.disabled = false; btn.textContent = '🔐 Ingresar';
-        return;
+    // [FIX RENDIMIENTO] Query directa por DNI — 1-2 lecturas en lugar de 800
+    let hijos = [];
+    try {
+      const res = await fsQuery('estudiantes',
+        FB.where('dniPadre', '==', dni)
+      );
+      hijos = res;
+      // Compatibilidad: también buscar campos alternativos de DNI si no hay resultados
+      if (!hijos.length) {
+        const res2 = await fsQuery('estudiantes', FB.where('dniApoderado', '==', dni));
+        hijos = res2;
       }
+    } catch(fsErr) {
+      err.textContent = '❌ Error al conectar con Firestore. Verifica tu conexión.';
+      err.style.display = 'block';
+      btn.disabled = false; btn.textContent = '🔐 Ingresar';
+      return;
     }
 
-    const hijos = todos.filter(e => {
-      const d = (e.dniPadre||e.dni||e.dniApoderado||'').toString().trim();
-      return d === dni;
-    });
-
-    // [MEJORA 6] Si no hay resultados en caché, intentar consulta directa a Firestore por si caché desactualizada
     if (!hijos.length) {
-      const todosDirecto = await fsGetAll('estudiantes');
-      _estudiantesCache = todosDirecto;
-      const hijosDirecto = todosDirecto.filter(e => {
-        const d = (e.dniPadre||e.dni||e.dniApoderado||'').toString().trim();
-        return d === dni;
-      });
-      if (!hijosDirecto.length) {
-        err.textContent = '❌ No se encontraron estudiantes con ese DNI. Consulta al administrador.';
-        err.style.display = 'block';
-        btn.disabled = false; btn.textContent = '🔐 Ingresar';
-        return;
-      }
-      hijos.push(...hijosDirecto);
+      err.textContent = '❌ No se encontraron estudiantes con ese DNI. Consulta al administrador.';
+      err.style.display = 'block';
+      btn.disabled = false; btn.textContent = '🔐 Ingresar';
+      return;
     }
 
     sesion = { uid:'padre_'+dni, nombre:'Apoderado', rol:'padre', grados:[], secciones:[], dni };
@@ -1189,8 +1171,9 @@ function _activarListeners() {
     (err) => console.warn('onSnapshot asistencia:', err)
   );
 
-  // Listener: justificaciones pendientes/alerta (para badge y panel)
-  const qJustif = FB.query(FB.collection(FB.db, 'justificaciones'));
+  // Listener: justificaciones — solo los últimos 30 días para evitar acumulación histórica
+  const hace30 = new Date(Date.now() - 30*864e5).toISOString().split('T')[0];
+  const qJustif = FB.query(FB.collection(FB.db, 'justificaciones'), FB.where('fecha', '>=', hace30));
   _listeners.justificaciones = FB.onSnapshot(
     qJustif,
     (snap) => {
@@ -1278,7 +1261,7 @@ async function fsQuery(col, ...conditions) {
 // ══════════════════════════════════════════════════════
 // FECHA
 // ══════════════════════════════════════════════════════
-function getFecha() { return new Date().toLocaleDateString('es-PE'); }
+function getFecha() { return new Date().toISOString().split('T')[0]; } // ISO YYYY-MM-DD — igual en todos los dispositivos
 function actualizarFecha() {
   document.getElementById('topbarDate').textContent =
     new Date().toLocaleDateString('es-PE',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
@@ -1398,8 +1381,9 @@ async function renderEstudiantes() {
   if (!c) return;
   c.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--texto-suave);">⏳ Cargando…</div>';
   
-  let lista = await fsGetAll('estudiantes');
-  _estudiantesCache = lista;
+  // [FIX RENDIMIENTO] Usar caché si está disponible — evitar lectura a Firestore
+  let lista = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
+  if (!_estudiantesCache.length) _estudiantesCache = lista;
   
   const gf = document.getElementById('fGradoAdmin')?.value;
   const sf = document.getElementById('fSecAdmin')?.value;
@@ -1407,12 +1391,18 @@ async function renderEstudiantes() {
   if (sf) lista = lista.filter(e=>e.seccion===sf);
 
   const fecha = getFecha();
-  const asist = await fsQuery('asistencia', FB.where('fecha','==',fecha));
+  const asist = _asistenciaHoyCache.length ? _asistenciaHoyCache : await fsQuery('asistencia', FB.where('fecha','==',fecha));
   const presSet = new Set(asist.map(a=>a.estudianteId));
 
   if (!lista.length) { c.innerHTML='<div style="padding:24px;text-align:center;color:var(--texto-suave);grid-column:1/-1;">📭 Sin estudiantes registrados</div>'; return; }
 
-  c.innerHTML = lista.map(e => `
+  // [FIX DOM] Paginación — mostrar 50 a la vez para no congelar el navegador
+  const POR_PAGINA = 50;
+  const pagActual = parseInt(c.dataset.pagina || '0');
+  const visible = lista.slice(0, (pagActual + 1) * POR_PAGINA);
+  const hayMas = visible.length < lista.length;
+
+  c.innerHTML = visible.map(e => `
     <div class="student-card ${presSet.has(e.id)?'presente':''}">
       <div class="student-name">${e.nombre}</div>
       <div class="student-grade">${e.grado} — Sección ${e.seccion}</div>
@@ -1423,7 +1413,22 @@ async function renderEstudiantes() {
         <button class="btn btn-danger btn-sm" onclick="eliminarEstudiante('${e.id}')">🗑</button>
       </div>
     </div>`).join('');
-  lista.forEach(e => generarQR(e.id, e));
+
+  if (hayMas) {
+    c.insertAdjacentHTML('beforeend', `<div style="grid-column:1/-1;text-align:center;padding:14px;">
+      <button class="btn btn-ghost btn-sm" onclick="cargarMasEstudiantes(this)">Ver más (${lista.length - visible.length} restantes)</button>
+    </div>`);
+    c.dataset.pagina = pagActual + 1;
+  } else {
+    c.dataset.pagina = '0';
+  }
+
+  visible.forEach(e => generarQR(e.id, e));
+}
+
+function cargarMasEstudiantes(btn) {
+  const c = document.getElementById('listaEstudiantes');
+  if (c) renderEstudiantes();
 }
 
 function generarQR(id, estudiante) {
@@ -1572,8 +1577,9 @@ async function renderListaAsistencia() {
   const c = document.getElementById('listaAsistencia');
   if (!c) return;
   
-  let lista = await fsGetAll('estudiantes');
-  _estudiantesCache = lista;
+  // [FIX RENDIMIENTO] Usar caché del onSnapshot — no releer Firestore innecesariamente
+  let lista = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
+  if (!_estudiantesCache.length) _estudiantesCache = lista;
   const gf = document.getElementById('fGradoAux')?.value;
   const sf = document.getElementById('fSecAux')?.value;
   if (sesion?.grados?.length) lista = lista.filter(e=>sesion.grados.includes(e.grado));
@@ -1664,11 +1670,11 @@ async function buscarPorDNI() {
   const dni=document.getElementById('dniBusq').value.trim();
   const c=document.getElementById('resDNI');
   if(!/^\d{8}$/.test(dni)){notif('❌ DNI debe tener 8 dígitos','error');return;}
-  const todos=await fsGetAll('estudiantes');
-  const hijos=todos.filter(e=>{
-    const d=(e.dniPadre||e.dni||e.dniApoderado||'').toString().trim();
-    return d===dni;
-  });
+  // [FIX RENDIMIENTO] Query directa por DNI — no descarga todos los estudiantes
+  let hijos = await fsQuery('estudiantes', FB.where('dniPadre', '==', dni));
+  if (!hijos.length) {
+    hijos = await fsQuery('estudiantes', FB.where('dniApoderado', '==', dni));
+  }
   if(!hijos.length){c.innerHTML='<div style="font-size:12px;color:var(--rojo);background:#fdf2f0;padding:8px;border-radius:8px;">❌ Sin estudiantes con ese DNI</div>';return;}
   const fecha=getFecha();
   const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
@@ -1691,11 +1697,11 @@ async function consultarPadre() {
   if(!/^\d{8}$/.test(dni)){notif('❌ DNI debe tener 8 dígitos','error');return;}
   try {
     if (!FB.auth.currentUser) { await FB.signInAnonymously(FB.auth); }
-    const todos=await fsGetAll('estudiantes');
-    const hijos=todos.filter(e=>{
-      const d=(e.dniPadre||e.dni||e.dniApoderado||'').toString().trim();
-      return d===dni;
-    });
+    // [FIX RENDIMIENTO] Query directa — no descargar toda la colección
+    let hijos = await fsQuery('estudiantes', FB.where('dniPadre', '==', dni));
+    if (!hijos.length) {
+      hijos = await fsQuery('estudiantes', FB.where('dniApoderado', '==', dni));
+    }
     if(!hijos.length){notif('❌ No se encontraron estudiantes con ese DNI','error');return;}
   document.getElementById('padreLoginDiv').style.display='none';
   document.getElementById('padreInfoDiv').classList.remove('hide');
@@ -1709,7 +1715,8 @@ async function renderHijosInfo(hijos) {
   const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
   const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
   const ausenteSet=new Set(asist.filter(a=>a.estado==='ausente').map(a=>a.estudianteId));
-  const justifs=await fsGetAll('justificaciones');
+  // [FIX RENDIMIENTO] Solo justificaciones del día, no toda la colección
+  const justifs=await fsQuery('justificaciones',FB.where('fecha','==',fecha));
   const c=document.getElementById('padreHijosDiv');
   c.innerHTML=hijos.map(h=>{
     const pres=presSet.has(h.id);
@@ -2127,7 +2134,8 @@ function verEvidencia(src) {
 }
 
 async function renderAlertas() {
-  const justifs=await fsGetAll('justificaciones');
+  // [FIX RENDIMIENTO] Usar caché del listener en lugar de leer Firestore
+  const justifs = _justificacionesCache.length ? _justificacionesCache : await fsGetAll('justificaciones');
   const alertas=justifs.filter(j=>j.estado==='alerta');
   const c=document.getElementById('alertasContainer');
   if(!c) return;
@@ -2167,7 +2175,9 @@ async function actualizarStats() {
 // REPORTES
 // ══════════════════════════════════════════════════════
 async function generarReporte() {
-  let estudiantes=await fsGetAll('estudiantes');
+  // [FIX RENDIMIENTO] Usar caché donde sea posible
+  let estudiantes = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
+  if (!_estudiantesCache.length) _estudiantesCache = estudiantes;
   const grado=document.getElementById('rGrado')?.value;
   const seccion=document.getElementById('rSeccion')?.value;
   const fi=document.getElementById('rFechaInicio')?.value;
@@ -2176,14 +2186,13 @@ async function generarReporte() {
   if(grado) estudiantes=estudiantes.filter(e=>e.grado===grado);
   if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
   const asistencias=await fsGetAll('asistencia');
-  const justifs=await fsGetAll('justificaciones');
+  const justifs = _justificacionesCache.length ? _justificacionesCache : await fsGetAll('justificaciones');
+  // [FIX FECHAS] filtrarFecha funciona con formato ISO (YYYY-MM-DD)
   const filtrarFecha=(f)=>{
     if(!fi&&!ff) return true;
-    const partes=f.split('/');
-    if(partes.length!==3) return true;
-    const d=new Date(partes[2],partes[1]-1,partes[0]);
-    if(fi&&d<new Date(fi)) return false;
-    if(ff&&d>new Date(ff+'T23:59:59')) return false;
+    if(!f) return true;
+    if(fi&&f<fi) return false;
+    if(ff&&f>ff) return false;
     return true;
   };
   const estIds=new Set(estudiantes.map(e=>e.id));
@@ -2228,18 +2237,19 @@ async function exportarExcel() {
   const seccion=document.getElementById('rSeccion')?.value||'';
   const fi=document.getElementById('rFechaInicio')?.value;
   const ff=document.getElementById('rFechaFin')?.value;
-  let estudiantes=await fsGetAll('estudiantes');
+  let estudiantes = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
+  if (!_estudiantesCache.length) _estudiantesCache = estudiantes;
   if(grado) estudiantes=estudiantes.filter(e=>e.grado===grado);
   if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
   const asistencias=await fsGetAll('asistencia');
-  const justifs=await fsGetAll('justificaciones');
+  const justifs = _justificacionesCache.length ? _justificacionesCache : await fsGetAll('justificaciones');
   const fecha=getFecha();
+  // [FIX FECHAS] Comparación directa de strings ISO (YYYY-MM-DD)
   const filtrarFecha=(f)=>{
     if(!fi&&!ff) return true;
-    const p=f.split('/'); if(p.length!==3) return true;
-    const d=new Date(p[2],p[1]-1,p[0]);
-    if(fi&&d<new Date(fi)) return false;
-    if(ff&&d>new Date(ff+'T23:59:59')) return false;
+    if(!f) return true;
+    if(fi&&f<fi) return false;
+    if(ff&&f>ff) return false;
     return true;
   };
   // Agrupar por grado y sección
@@ -2329,7 +2339,7 @@ async function exportarExcel() {
   notif('📥 Reporte por grado/sección listo para imprimir','success');
 }
 async function exportarPDF() {
-  const estudiantes=await fsGetAll('estudiantes');
+  const estudiantes = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
   const fecha=getFecha();
   const asistencias=await fsQuery('asistencia',FB.where('fecha','==',fecha));
   const presSet=new Set(asistencias.map(a=>a.estudianteId));
