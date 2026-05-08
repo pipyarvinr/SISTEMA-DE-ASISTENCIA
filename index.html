@@ -2620,37 +2620,61 @@ async function eliminarUsuario(uid, email) {
 // SCANNER — BarcodeDetector (nativo) + jsQR (respaldo)
 // ══════════════════════════════════════════════════════
 
+// Instancia única de BarcodeDetector (costoso de crear cada frame)
+let _barcodeDetector = null;
+if (window.BarcodeDetector) {
+  try { _barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] }); } catch(e) {}
+}
+
+// ── Helpers para obtener dimensiones y canvas desde cualquier fuente ──
+function _getSourceDims(source) {
+  if (source instanceof HTMLVideoElement)  return [source.videoWidth,  source.videoHeight];
+  if (source instanceof HTMLImageElement)  return [source.naturalWidth, source.naturalHeight];
+  if (source instanceof ImageBitmap)       return [source.width,        source.height];
+  if (source instanceof HTMLCanvasElement) return [source.width,        source.height];
+  return [0, 0];
+}
+
+// Dibuja cualquier fuente en un canvas a la escala deseada y devuelve ImageData
+function _sourceToImageData(source, sw, sh) {
+  const c = document.createElement('canvas');
+  c.width = sw; c.height = sh;
+  const ctx = c.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(source, 0, 0, sw, sh);
+  try { return { canvas: c, data: ctx.getImageData(0, 0, sw, sh) }; } catch { return null; }
+}
+
 // ── Leer QR desde cualquier fuente de imagen ─────────
-// Intenta BarcodeDetector primero (Chrome/Android nativo, hardware-acelerado)
-// Si no está disponible usa jsQR como respaldo
 async function leerQR(source) {
-  // Método 1: BarcodeDetector (nativo del navegador — más confiable)
-  if (window.BarcodeDetector) {
+  // Método 1: BarcodeDetector nativo (Chrome/Android — hardware-acelerado)
+  // IMPORTANTE: BarcodeDetector no acepta ImageBitmap en todos los navegadores,
+  // así que primero dibujamos en canvas para garantizar compatibilidad.
+  if (_barcodeDetector) {
     try {
-      const detector = new BarcodeDetector({ formats: ['qr_code'] });
-      const codes = await detector.detect(source);
+      let target = source;
+      // Si NO es Video ni Canvas, convertir a canvas para máxima compatibilidad
+      if (!(source instanceof HTMLVideoElement) && !(source instanceof HTMLCanvasElement)) {
+        const [w, h] = _getSourceDims(source);
+        if (w && h) {
+          const res = _sourceToImageData(source, w, h);
+          if (res) target = res.canvas;
+        }
+      }
+      const codes = await _barcodeDetector.detect(target);
       if (codes.length > 0) return codes[0].rawValue;
-    } catch(e) { /* continuar con respaldo */ }
+    } catch(e) { /* continuar con respaldo jsQR */ }
   }
 
-  // Método 2: jsQR (respaldo para navegadores sin BarcodeDetector)
+  // Método 2: jsQR (respaldo universal)
   await cargarJsQR();
-  const canvas = document.createElement('canvas');
-  let w, h;
-  if (source instanceof HTMLVideoElement) {
-    w = source.videoWidth; h = source.videoHeight;
-  } else if (source instanceof HTMLImageElement) {
-    w = source.naturalWidth; h = source.naturalHeight;
-  } else if (source instanceof ImageBitmap) {
-    w = source.width; h = source.height;
-  } else {
-    return null;
-  }
+  if (!window.jsQR) return null;
+
+  const [w, h] = _getSourceDims(source);
   if (!w || !h) return null;
 
-  // Intentar en múltiples escalas — jsQR falla con imágenes muy grandes
+  // Intentar en múltiples escalas — jsQR funciona mejor entre 200–1200px
   const escalas = [];
-  const maxSizes = [1200, 800, 400];
+  const maxSizes = [1200, 800, 500, 300];
   for (const m of maxSizes) {
     if (w > m || h > m) {
       const r = Math.min(m/w, m/h);
@@ -2659,34 +2683,73 @@ async function leerQR(source) {
   }
   escalas.push([w, h]); // original como último recurso
 
-  const ctx2 = canvas.getContext('2d', { willReadFrequently: true });
   for (const [sw, sh] of escalas) {
-    canvas.width = sw; canvas.height = sh;
-    ctx2.drawImage(source, 0, 0, sw, sh);
-    let imgData;
-    try { imgData = ctx2.getImageData(0, 0, sw, sh); } catch { continue; }
+    const res = _sourceToImageData(source, sw, sh);
+    if (!res) continue;
+    const { data: imgData } = res;
 
     // Intento A: imagen tal cual
     let code = jsQR(imgData.data, sw, sh, { inversionAttempts: 'attemptBoth' });
     if (code) return code.data;
 
-    // Intento B: binarización adaptativa (umbral = brillo promedio)
-    const bin = binarizar(imgData);
+    // Intento B: binarización con umbral local (Sauvola simplificado)
+    const bin = binarizarAdaptativo(imgData);
     code = jsQR(bin.data, sw, sh, { inversionAttempts: 'attemptBoth' });
+    if (code) return code.data;
+
+    // Intento C: aumentar contraste antes de binarizar
+    const alto = aumentarContraste(imgData);
+    code = jsQR(alto.data, sw, sh, { inversionAttempts: 'attemptBoth' });
     if (code) return code.data;
   }
   return null;
 }
 
-function binarizar(imgData) {
+// Binarización con umbral global (promedio de brillo)
+function binarizarAdaptativo(imgData) {
   const d = new Uint8ClampedArray(imgData.data);
-  let suma = 0;
-  for (let i = 0; i < d.length; i += 4)
-    suma += 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
-  const umbral = suma / (d.length / 4);
+  // Calcular umbral en bloques 8x8 para manejar iluminación desigual
+  const W = imgData.width, H = imgData.height;
+  const BS = 32; // tamaño de bloque
+  const out = new Uint8ClampedArray(d);
+  for (let by = 0; by < H; by += BS) {
+    for (let bx = 0; bx < W; bx += BS) {
+      // Calcular promedio del bloque
+      let suma = 0, cnt = 0;
+      for (let y = by; y < Math.min(by+BS, H); y++) {
+        for (let x = bx; x < Math.min(bx+BS, W); x++) {
+          const i = (y*W+x)*4;
+          suma += 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+          cnt++;
+        }
+      }
+      const umbral = (suma / cnt) * 0.85; // ligeramente por debajo del promedio
+      // Aplicar umbral al bloque
+      for (let y = by; y < Math.min(by+BS, H); y++) {
+        for (let x = bx; x < Math.min(bx+BS, W); x++) {
+          const i = (y*W+x)*4;
+          const v = (0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]) > umbral ? 255 : 0;
+          out[i] = out[i+1] = out[i+2] = v; out[i+3] = 255;
+        }
+      }
+    }
+  }
+  return new ImageData(out, W, H);
+}
+
+// Aumentar contraste estirando el histograma
+function aumentarContraste(imgData) {
+  const d = new Uint8ClampedArray(imgData.data);
+  let min = 255, max = 0;
   for (let i = 0; i < d.length; i += 4) {
-    const v = (0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]) > umbral ? 255 : 0;
-    d[i] = d[i+1] = d[i+2] = v;
+    const v = Math.round(0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]);
+    if (v < min) min = v; if (v > max) max = v;
+  }
+  const rng = max - min || 1;
+  for (let i = 0; i < d.length; i += 4) {
+    d[i]   = Math.round((d[i]   - min) / rng * 255);
+    d[i+1] = Math.round((d[i+1] - min) / rng * 255);
+    d[i+2] = Math.round((d[i+2] - min) / rng * 255);
   }
   return new ImageData(d, imgData.width, imgData.height);
 }
@@ -2757,6 +2820,7 @@ async function iniciarCamara() {
 
 // Loop asíncrono de escaneo — usa leerQR() que prueba BarcodeDetector y jsQR
 let _scanLoopId = 0;
+let _lastScanMs = 0; // throttle: mínimo 250ms entre intentos (da tiempo al enfoque)
 async function _tickScanAsync(v) {
   const myId = ++_scanLoopId;
   const dots = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏'];
@@ -2769,10 +2833,15 @@ async function _tickScanAsync(v) {
     if (!escaneando || myId !== _scanLoopId) break;
     if (!v || v.readyState < 2 || v.videoWidth === 0 || v.paused) continue;
 
+    // Throttle: no intentar más de 4 veces por segundo para no bloquear el hilo
+    const now = Date.now();
+    if (now - _lastScanMs < 250) continue;
+    _lastScanMs = now;
+
     // Actualizar indicador visual
     frame++;
-    if (frame % 8 === 0 && statusEl && statusEl.textContent.startsWith('🟢')) {
-      statusEl.textContent = '🟢 Escaneando ' + dots[(frame/8) % dots.length];
+    if (frame % 4 === 0 && statusEl && statusEl.textContent.startsWith('🟢')) {
+      statusEl.textContent = '🟢 Escaneando ' + dots[(frame/4) % dots.length];
     }
 
     // Intentar leer QR del frame actual
@@ -2824,22 +2893,25 @@ async function procesarFotoQR(input) {
   resEl.innerHTML = '';
   document.getElementById('photoPreview').style.display = 'block';
 
-  // Mostrar preview
+  // Mostrar preview y esperar que cargue completamente
   const url = URL.createObjectURL(file);
   const imgEl = document.getElementById('photoImg');
   imgEl.src = url;
-  await new Promise(r => { imgEl.onload = r; });
+  await new Promise(r => { imgEl.onload = r; imgEl.onerror = r; });
 
-  // Crear ImageBitmap — compatible con BarcodeDetector y jsQR
-  let bitmap;
-  try { bitmap = await createImageBitmap(file); }
-  catch { bitmap = imgEl; } // fallback al elemento img
+  // Dibujar en canvas offline para garantizar compatibilidad con BarcodeDetector y jsQR
+  // Esto evita problemas con ImageBitmap en iOS/Safari y normaliza la fuente
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width  = imgEl.naturalWidth  || imgEl.width  || 800;
+  offCanvas.height = imgEl.naturalHeight || imgEl.height || 600;
+  const offCtx = offCanvas.getContext('2d');
+  offCtx.drawImage(imgEl, 0, 0, offCanvas.width, offCanvas.height);
 
   URL.revokeObjectURL(url);
 
   // leerQR() prueba BarcodeDetector primero, luego jsQR en múltiples escalas
   let qrData = null;
-  try { qrData = await leerQR(bitmap); } catch(e) { console.warn('leerQR error:', e); }
+  try { qrData = await leerQR(offCanvas); } catch(e) { console.warn('leerQR error:', e); }
 
   statusEl.textContent = '';
   if (!qrData) {
