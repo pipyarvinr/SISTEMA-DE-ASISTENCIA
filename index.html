@@ -123,17 +123,17 @@ function escapeHtml(str) {
 
 // ══ GENERADOR QR — qrcode.js (librería estándar confiable) ══
 </script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" onload="window._QRCodeLib = window.QRCode;"></script>
 <script>
-// La librería qrcode.js ya se cargó como 'QRCode' global.
-// Guardamos referencia a la librería real antes de redefinir QRCode.
-const _QRLib = window.QRCode;
-// Adaptador para mantener la misma API que usaba el código anterior
+// Adaptador QRCode — usa qrcode.js (cargado justo antes)
 const QRCode = {
+  _lib: function() { return window.QRCode._lib || window.QRCode; },
   toCanvas: function(canvas, text, opts, cb) {
     if (typeof opts === 'function') { cb = opts; opts = {}; }
     opts = opts || {};
-    _QRLib.toCanvas(canvas, text, {
+    const lib = window._QRCodeLib;
+    if (!lib) { if (cb) cb(new Error('QR lib no cargada')); return; }
+    lib.toCanvas(canvas, text, {
       width: opts.width || 200,
       margin: opts.margin != null ? opts.margin : 2,
       errorCorrectionLevel: opts.errorCorrectionLevel || 'M',
@@ -143,7 +143,9 @@ const QRCode = {
   toDataURL: function(text, opts, cb) {
     if (typeof opts === 'function') { cb = opts; opts = {}; }
     opts = opts || {};
-    _QRLib.toDataURL(text, {
+    const lib = window._QRCodeLib;
+    if (!lib) { if (cb) cb(new Error('QR lib no cargada')); return; }
+    lib.toDataURL(text, {
       width: opts.width || 200,
       margin: opts.margin != null ? opts.margin : 2,
       errorCorrectionLevel: opts.errorCorrectionLevel || 'M',
