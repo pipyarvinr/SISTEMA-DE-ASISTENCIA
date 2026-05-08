@@ -2640,7 +2640,17 @@ async function iniciarCamara() {
     catch{scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode}});}
     const v=document.getElementById('scannerVideo');
     v.srcObject=scannerStream;
-    await new Promise(r=>{v.onloadedmetadata=()=>{v.play().catch(()=>{});r();};setTimeout(r,3000);});
+    // Esperar a que el video tenga metadata y pueda reproducirse
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => resolve(), 5000); // fallback 5s
+      v.onloadedmetadata = async () => {
+        clearTimeout(timeout);
+        try { await v.play(); } catch(e) { /* autoplay policy — ignore */ }
+        resolve();
+      };
+    });
+    // Asegurarse de que el video está realmente corriendo antes de escanear
+    if (v.paused) { try { await v.play(); } catch(e) {} }
     scannerCanvas=document.createElement('canvas');
     scannerCtx=scannerCanvas.getContext('2d',{willReadFrequently:true});
     document.getElementById('scanStatus').textContent='🟢 Apunta al código QR del estudiante';
@@ -2668,12 +2678,20 @@ function flipCam(){facingMode=facingMode==='environment'?'user':'environment';in
 function tickScan() {
   if(!escaneando) return;
   const v=document.getElementById('scannerVideo');
-  if(!v||v.readyState<2||v.videoWidth===0){scannerRaf=requestAnimationFrame(tickScan);return;}
-  scannerCanvas.width=v.videoWidth; scannerCanvas.height=v.videoHeight;
+  // readyState 2 = HAVE_CURRENT_DATA, 3 = HAVE_FUTURE_DATA, 4 = HAVE_ENOUGH_DATA
+  if(!v || v.readyState < 2 || v.videoWidth === 0 || v.paused){
+    scannerRaf=requestAnimationFrame(tickScan);
+    return;
+  }
+  // Solo redimensionar el canvas si cambió el tamaño del video (evita reflow innecesario)
+  if(scannerCanvas.width !== v.videoWidth) scannerCanvas.width = v.videoWidth;
+  if(scannerCanvas.height !== v.videoHeight) scannerCanvas.height = v.videoHeight;
   scannerCtx.drawImage(v,0,0);
-  let img; try{img=scannerCtx.getImageData(0,0,scannerCanvas.width,scannerCanvas.height);}catch{scannerRaf=requestAnimationFrame(tickScan);return;}
-  const code=jsQR(img.data,img.width,img.height,{inversionAttempts:'attemptBoth'});
-  if(code&&code.data){
+  let img;
+  try { img = scannerCtx.getImageData(0,0,scannerCanvas.width,scannerCanvas.height); }
+  catch(e) { scannerRaf=requestAnimationFrame(tickScan); return; }
+  const code = jsQR(img.data, img.width, img.height, {inversionAttempts:'attemptBoth'});
+  if(code && code.data){
     escaneando=false;
     const flash=document.createElement('div');
     Object.assign(flash.style,{position:'absolute',inset:'0',background:'rgba(192,57,43,.5)',borderRadius:'12px',pointerEvents:'none',animation:'fadeOut .7s ease forwards'});
