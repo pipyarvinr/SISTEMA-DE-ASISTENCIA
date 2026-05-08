@@ -2617,14 +2617,86 @@ async function eliminarUsuario(uid, email) {
 }
 
 // ══════════════════════════════════════════════════════
-// SCANNER
+// SCANNER — BarcodeDetector (nativo) + jsQR (respaldo)
 // ══════════════════════════════════════════════════════
+
+// ── Leer QR desde cualquier fuente de imagen ─────────
+// Intenta BarcodeDetector primero (Chrome/Android nativo, hardware-acelerado)
+// Si no está disponible usa jsQR como respaldo
+async function leerQR(source) {
+  // Método 1: BarcodeDetector (nativo del navegador — más confiable)
+  if (window.BarcodeDetector) {
+    try {
+      const detector = new BarcodeDetector({ formats: ['qr_code'] });
+      const codes = await detector.detect(source);
+      if (codes.length > 0) return codes[0].rawValue;
+    } catch(e) { /* continuar con respaldo */ }
+  }
+
+  // Método 2: jsQR (respaldo para navegadores sin BarcodeDetector)
+  await cargarJsQR();
+  const canvas = document.createElement('canvas');
+  let w, h;
+  if (source instanceof HTMLVideoElement) {
+    w = source.videoWidth; h = source.videoHeight;
+  } else if (source instanceof HTMLImageElement) {
+    w = source.naturalWidth; h = source.naturalHeight;
+  } else if (source instanceof ImageBitmap) {
+    w = source.width; h = source.height;
+  } else {
+    return null;
+  }
+  if (!w || !h) return null;
+
+  // Intentar en múltiples escalas — jsQR falla con imágenes muy grandes
+  const escalas = [];
+  const maxSizes = [1200, 800, 400];
+  for (const m of maxSizes) {
+    if (w > m || h > m) {
+      const r = Math.min(m/w, m/h);
+      escalas.push([Math.round(w*r), Math.round(h*r)]);
+    }
+  }
+  escalas.push([w, h]); // original como último recurso
+
+  const ctx2 = canvas.getContext('2d', { willReadFrequently: true });
+  for (const [sw, sh] of escalas) {
+    canvas.width = sw; canvas.height = sh;
+    ctx2.drawImage(source, 0, 0, sw, sh);
+    let imgData;
+    try { imgData = ctx2.getImageData(0, 0, sw, sh); } catch { continue; }
+
+    // Intento A: imagen tal cual
+    let code = jsQR(imgData.data, sw, sh, { inversionAttempts: 'attemptBoth' });
+    if (code) return code.data;
+
+    // Intento B: binarización adaptativa (umbral = brillo promedio)
+    const bin = binarizar(imgData);
+    code = jsQR(bin.data, sw, sh, { inversionAttempts: 'attemptBoth' });
+    if (code) return code.data;
+  }
+  return null;
+}
+
+function binarizar(imgData) {
+  const d = new Uint8ClampedArray(imgData.data);
+  let suma = 0;
+  for (let i = 0; i < d.length; i += 4)
+    suma += 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+  const umbral = suma / (d.length / 4);
+  for (let i = 0; i < d.length; i += 4) {
+    const v = (0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2]) > umbral ? 255 : 0;
+    d[i] = d[i+1] = d[i+2] = v;
+  }
+  return new ImageData(d, imgData.width, imgData.height);
+}
+
 function cargarJsQR() {
-  return new Promise((res,rej)=>{
-    if(window.jsQR){res();return;}
-    const s=document.createElement('script');
-    s.src='https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
-    s.onload=()=>res(); s.onerror=()=>rej();
+  return new Promise((res, rej) => {
+    if (window.jsQR) { res(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+    s.onload = res; s.onerror = rej;
     document.head.appendChild(s);
   });
 }
@@ -2651,157 +2723,98 @@ function switchScanTab(tab) {
 }
 
 async function iniciarCamara() {
-  document.getElementById('scanStatus').textContent='Cargando escáner…';
-  document.getElementById('camErrorBox').style.display='none';
-  try{await cargarJsQR();}catch{document.getElementById('scanStatus').textContent='⚠️ Sin conexión para cargar escáner';document.getElementById('camErrorBox').style.display='block';return;}
+  const statusEl = document.getElementById('scanStatus');
+  const errBox   = document.getElementById('camErrorBox');
+  statusEl.textContent = 'Iniciando cámara…';
+  errBox.style.display = 'none';
   detenerCamara();
-  try{
-    try{scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{exact:facingMode}}});}
-    catch{scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode}});}
-    const v=document.getElementById('scannerVideo');
-    v.srcObject=scannerStream;
-    // Esperar a que el video tenga metadata y pueda reproducirse
-    await new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => resolve(), 5000); // fallback 5s
-      v.onloadedmetadata = async () => {
-        clearTimeout(timeout);
-        try { await v.play(); } catch(e) { /* autoplay policy — ignore */ }
-        resolve();
-      };
+  try {
+    // Pedir cámara trasera con resolución alta para mejor detección
+    const constraints = { video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } } };
+    try { scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } } }); }
+    catch { scannerStream = await navigator.mediaDevices.getUserMedia(constraints); }
+
+    const v = document.getElementById('scannerVideo');
+    v.srcObject = scannerStream;
+    await new Promise(resolve => {
+      const t = setTimeout(resolve, 5000);
+      v.onloadedmetadata = () => { clearTimeout(t); resolve(); };
     });
-    // Asegurarse de que el video está realmente corriendo antes de escanear
     if (v.paused) { try { await v.play(); } catch(e) {} }
-    scannerCanvas=document.createElement('canvas');
-    scannerCtx=scannerCanvas.getContext('2d',{willReadFrequently:true});
-    document.getElementById('scanStatus').textContent='🟢 Apunta al código QR del estudiante';
-    escaneando=true; tickScan();
-  }catch(err){
-    let msg='❌ No se pudo acceder a la cámara';
-    if(err.name==='NotAllowedError') msg='🔒 Permiso denegado — revisa permisos del navegador';
-    else if(err.name==='NotFoundError') msg='📷 No se encontró cámara';
-    else if(!navigator.mediaDevices) msg='🌐 Navegador no compatible — usa Chrome';
-    document.getElementById('scanStatus').textContent=msg;
-    document.getElementById('camErrorBox').style.display='block';
+
+    statusEl.textContent = '🟢 Apunta al código QR del estudiante';
+    escaneando = true;
+    _tickScanAsync(v);
+  } catch(err) {
+    let msg = '❌ No se pudo acceder a la cámara';
+    if (err.name === 'NotAllowedError') msg = '🔒 Permiso denegado — activa la cámara en tu navegador';
+    else if (err.name === 'NotFoundError') msg = '📷 No se encontró cámara en este dispositivo';
+    else if (!navigator.mediaDevices) msg = '🌐 Usa Chrome o Edge para escanear';
+    statusEl.textContent = msg;
+    errBox.style.display = 'block';
+  }
+}
+
+// Loop asíncrono de escaneo — usa leerQR() que prueba BarcodeDetector y jsQR
+let _scanLoopId = 0;
+async function _tickScanAsync(v) {
+  const myId = ++_scanLoopId;
+  const dots = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏'];
+  let frame = 0;
+  const statusEl = document.getElementById('scanStatus');
+
+  while (escaneando && myId === _scanLoopId) {
+    // Esperar siguiente frame de video
+    await new Promise(r => scannerRaf = requestAnimationFrame(r));
+    if (!escaneando || myId !== _scanLoopId) break;
+    if (!v || v.readyState < 2 || v.videoWidth === 0 || v.paused) continue;
+
+    // Actualizar indicador visual
+    frame++;
+    if (frame % 8 === 0 && statusEl && statusEl.textContent.startsWith('🟢')) {
+      statusEl.textContent = '🟢 Escaneando ' + dots[(frame/8) % dots.length];
+    }
+
+    // Intentar leer QR del frame actual
+    let qrData = null;
+    try { qrData = await leerQR(v); } catch(e) { continue; }
+
+    if (qrData) {
+      escaneando = false;
+      // Flash visual de éxito
+      const flash = document.createElement('div');
+      Object.assign(flash.style, { position:'absolute', inset:'0', background:'rgba(46,204,113,.4)', borderRadius:'12px', pointerEvents:'none' });
+      document.getElementById('scannerView')?.appendChild(flash);
+      setTimeout(() => flash.remove(), 600);
+
+      const ok = await registrarAsistencia(qrData);
+      if (ok) {
+        setTimeout(() => cerrarScanner(), 800);
+      } else {
+        if (statusEl) statusEl.textContent = '⚠️ Ya registrado o estudiante no encontrado';
+        setTimeout(() => {
+          if (document.getElementById('scannerModal')?.classList.contains('open')) {
+            escaneando = true;
+            if (statusEl) statusEl.textContent = '🟢 Apunta al código QR del estudiante';
+            _tickScanAsync(v);
+          }
+        }, 2000);
+      }
+      break;
+    }
   }
 }
 
 function detenerCamara() {
-  escaneando=false;
-  if(scannerRaf){cancelAnimationFrame(scannerRaf);scannerRaf=null;}
-  if(scannerStream){scannerStream.getTracks().forEach(t=>t.stop());scannerStream=null;}
-  const v=document.getElementById('scannerVideo');
-  if(v) v.srcObject=null;
+  escaneando = false;
+  _scanLoopId++;
+  if (scannerRaf) { cancelAnimationFrame(scannerRaf); scannerRaf = null; }
+  if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
+  const v = document.getElementById('scannerVideo');
+  if (v) v.srcObject = null;
 }
 
-function flipCam(){facingMode=facingMode==='environment'?'user':'environment';iniciarCamara();}
-
-let _scanFrameCount = 0;
-function tickScan() {
-  if(!escaneando) return;
-  const v=document.getElementById('scannerVideo');
-  if(!v || v.readyState < 2 || v.videoWidth === 0 || v.paused){
-    scannerRaf=requestAnimationFrame(tickScan);
-    return;
-  }
-
-  // Escanear cada 2 frames (balance entre velocidad y carga CPU)
-  _scanFrameCount++;
-  if(_scanFrameCount % 2 !== 0){
-    scannerRaf=requestAnimationFrame(tickScan);
-    return;
-  }
-
-  // Actualizar indicador visual cada 15 frames para confirmar que el scanner está activo
-  if(_scanFrameCount % 15 === 0){
-    const dots = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏'];
-    const statusEl = document.getElementById('scanStatus');
-    if(statusEl && statusEl.textContent.startsWith('🟢')){
-      statusEl.textContent = '🟢 Escaneando ' + dots[Math.floor(_scanFrameCount/15) % dots.length];
-    }
-  }
-
-  if(scannerCanvas.width !== v.videoWidth) scannerCanvas.width = v.videoWidth;
-  if(scannerCanvas.height !== v.videoHeight) scannerCanvas.height = v.videoHeight;
-  scannerCtx.drawImage(v,0,0);
-
-  let img;
-  try { img = scannerCtx.getImageData(0,0,scannerCanvas.width,scannerCanvas.height); }
-  catch(e) { scannerRaf=requestAnimationFrame(tickScan); return; }
-
-  // Intento 1: imagen original
-  let code = jsQR(img.data, img.width, img.height, {inversionAttempts:'attemptBoth'});
-
-  // Intento 2: si falla, aplicar boost de contraste (ayuda con pantallas brillantes)
-  if(!code) {
-    const boosted = boostContraste(img);
-    code = jsQR(boosted.data, boosted.width, boosted.height, {inversionAttempts:'attemptBoth'});
-  }
-
-  // Intento 3: recorte central (descarta bordes ruidosos)
-  if(!code) {
-    const cx = Math.floor(v.videoWidth*0.15), cy = Math.floor(v.videoHeight*0.15);
-    const cw = Math.floor(v.videoWidth*0.7),  ch = Math.floor(v.videoHeight*0.7);
-    try {
-      const cropped = scannerCtx.getImageData(cx, cy, cw, ch);
-      code = jsQR(cropped.data, cropped.width, cropped.height, {inversionAttempts:'attemptBoth'});
-    } catch(e) {}
-  }
-
-  // Intento 4: imagen reducida al 50% (ayuda cuando el QR es grande en cámara)
-  if(!code) {
-    const sw = Math.floor(scannerCanvas.width/2), sh = Math.floor(scannerCanvas.height/2);
-    const sc = document.createElement('canvas'); sc.width=sw; sc.height=sh;
-    sc.getContext('2d').drawImage(scannerCanvas,0,0,sw,sh);
-    try {
-      const sd = sc.getContext('2d').getImageData(0,0,sw,sh);
-      code = jsQR(sd.data,sd.width,sd.height,{inversionAttempts:'attemptBoth'});
-    } catch(e) {}
-  }
-
-  if(code && code.data){
-    escaneando=false;
-    const flash=document.createElement('div');
-    Object.assign(flash.style,{position:'absolute',inset:'0',background:'rgba(192,57,43,.5)',borderRadius:'12px',pointerEvents:'none',animation:'fadeOut .7s ease forwards'});
-    document.getElementById('scannerView').appendChild(flash);
-    registrarAsistencia(code.data).then(ok=>{
-      if(ok) {
-        setTimeout(()=>cerrarScanner(),800);
-      } else {
-        document.getElementById('scanStatus').textContent='⚠️ No se pudo registrar — intenta de nuevo';
-        setTimeout(()=>{
-          if(document.getElementById('scannerModal').classList.contains('open')){
-            escaneando=true;
-            _scanFrameCount=0;
-            document.getElementById('scanStatus').textContent='🟢 Apunta al código QR del estudiante';
-            tickScan();
-          }
-        },2000);
-      }
-    });
-    return;
-  }
-  scannerRaf=requestAnimationFrame(tickScan);
-}
-
-// Boost de contraste adaptativo — umbral calculado del promedio de la imagen
-// (mejor que umbral fijo 128, funciona con distintas condiciones de luz)
-function boostContraste(imgData) {
-  const data = new Uint8ClampedArray(imgData.data);
-  // Paso 1: calcular brillo promedio de la imagen
-  let suma = 0;
-  const total = data.length / 4;
-  for (let i = 0; i < data.length; i += 4) {
-    suma += 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
-  }
-  const umbral = suma / total; // umbral adaptativo
-  // Paso 2: binarizar con ese umbral
-  for (let i = 0; i < data.length; i += 4) {
-    const gray = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
-    const val  = gray > umbral ? 255 : 0;
-    data[i] = val; data[i+1] = val; data[i+2] = val;
-  }
-  return new ImageData(data, imgData.width, imgData.height);
-}
+function flipCam() { facingMode = facingMode === 'environment' ? 'user' : 'environment'; iniciarCamara(); }
 
 async function procesarFotoQR(input) {
   const file = input.files[0]; if (!file) return;
@@ -2810,58 +2823,37 @@ async function procesarFotoQR(input) {
   statusEl.textContent = '⏳ Procesando imagen…';
   resEl.innerHTML = '';
   document.getElementById('photoPreview').style.display = 'block';
-  try { await cargarJsQR(); } catch { statusEl.textContent = '❌ Sin conexión para cargar escáner'; return; }
 
+  // Mostrar preview
   const url = URL.createObjectURL(file);
   const imgEl = document.getElementById('photoImg');
   imgEl.src = url;
   await new Promise(r => { imgEl.onload = r; });
+
+  // Crear ImageBitmap — compatible con BarcodeDetector y jsQR
+  let bitmap;
+  try { bitmap = await createImageBitmap(file); }
+  catch { bitmap = imgEl; } // fallback al elemento img
+
   URL.revokeObjectURL(url);
 
-  const OW = imgEl.naturalWidth, OH = imgEl.naturalHeight;
-
-  // [FIX PRINCIPAL] Las fotos de celular son 4000px+. jsQR falla porque
-  // el patrón QR queda microscópico. Probar en varios tamaños descendentes.
-  const escalas = [];
-  const tamaños = [1400, 900, 600];
-  for (const MAX of tamaños) {
-    if (OW > MAX || OH > MAX) {
-      const r = Math.min(MAX/OW, MAX/OH);
-      escalas.push({ w: Math.round(OW*r), h: Math.round(OH*r) });
-    }
-  }
-  escalas.push({ w: OW, h: OH }); // original como último recurso
-
-  const tmpCanvas = document.createElement('canvas');
-  const tmpCtx    = tmpCanvas.getContext('2d', { willReadFrequently: true });
-
-  let code = null;
-  for (const esc of escalas) {
-    tmpCanvas.width  = esc.w;
-    tmpCanvas.height = esc.h;
-    tmpCtx.drawImage(imgEl, 0, 0, esc.w, esc.h);
-    let imgData;
-    try { imgData = tmpCtx.getImageData(0, 0, esc.w, esc.h); } catch { continue; }
-
-    // Intento A: imagen tal cual
-    code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'attemptBoth' });
-    if (code) break;
-
-    // Intento B: binarización (ayuda con fondos con brillo variable)
-    const bin = boostContraste(imgData);
-    code = jsQR(bin.data, bin.width, bin.height, { inversionAttempts: 'attemptBoth' });
-    if (code) break;
-  }
+  // leerQR() prueba BarcodeDetector primero, luego jsQR en múltiples escalas
+  let qrData = null;
+  try { qrData = await leerQR(bitmap); } catch(e) { console.warn('leerQR error:', e); }
 
   statusEl.textContent = '';
-  if (!code) {
-    resEl.innerHTML = '<span style="color:var(--rojo)">❌ No se encontró QR. Acerca más la cámara al código y vuelve a intentar.</span>';
+  if (!qrData) {
+    resEl.innerHTML = '<span style="color:var(--rojo)">❌ No se encontró QR en la imagen.<br><small>Asegúrate de que el código QR esté visible y sin reflejos.</small></span>';
     return;
   }
-  resEl.innerHTML = '<span style="color:var(--verde)">✅ QR detectado</span>';
-  const ok = await registrarAsistencia(code.data);
-  if (ok) { resEl.innerHTML = '<span style="color:var(--verde)">✅ Asistencia registrada</span>'; setTimeout(() => cerrarScanner(), 1200); }
-  else     { resEl.innerHTML = '<span style="color:var(--naranja)">⚠️ Ya registrado o no encontrado</span>'; }
+  resEl.innerHTML = '<span style="color:var(--verde)">✅ QR detectado — registrando…</span>';
+  const ok = await registrarAsistencia(qrData);
+  if (ok) {
+    resEl.innerHTML = '<span style="color:var(--verde)">✅ Asistencia registrada correctamente</span>';
+    setTimeout(() => cerrarScanner(), 1200);
+  } else {
+    resEl.innerHTML = '<span style="color:var(--naranja)">⚠️ Ya estaba registrado o estudiante no encontrado</span>';
+  }
 }
 
 async function procesarManual() {
