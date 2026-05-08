@@ -1206,10 +1206,14 @@ async function renderEstudiantes() {
 function generarQR(id, estudiante) {
   const el = document.getElementById('qr_'+id);
   if (!el || el.querySelector('canvas') || el.querySelector('img')) return;
-  new QRCode(el, {
-    text: JSON.stringify({id, nombre:estudiante.nombre, grado:estudiante.grado, seccion:estudiante.seccion}),
-    width: 76, height: 76, correctLevel: QRCode.CorrectLevel.M
-  });
+  // Solo el id en el QR: texto corto, siempre funciona sin importar longitud del nombre
+  // Al escanear se consulta Firebase para obtener nombre, grado, seccion
+  try {
+    new QRCode(el, {
+      text: id,
+      width: 76, height: 76, correctLevel: QRCode.CorrectLevel.L
+    });
+  } catch(e) { console.warn('QR error', id, e); }
 }
 
 async function eliminarEstudiante(id) {
@@ -1226,7 +1230,7 @@ async function descargarQR(id) {
   let qrCanvas = qrEl?.querySelector('canvas');
   if (!qrCanvas) {
     // Generar QR en memoria si no está en el DOM todavía
-    const dataUrl = await _generarQRDataURL(JSON.stringify({id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}), 180);
+    const dataUrl = await _generarQRDataURL(id, 180); // solo id para garantizar generacion
     if (!dataUrl) { notif('❌ Error al generar el QR','error'); return; }
     // Crear canvas temporal a partir del dataURL
     const img = new Image(); img.src = dataUrl;
@@ -1307,7 +1311,7 @@ async function imprimirQR() {
       // Intentar reutilizar canvas del DOM si ya existe
       const domCanvas = document.getElementById('qr_'+e.id)?.querySelector('canvas');
       if (domCanvas) { qrMap[e.id] = domCanvas.toDataURL('image/png'); }
-      else { qrMap[e.id] = await _generarQRDataURL(JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}), 130); }
+      else { qrMap[e.id] = await _generarQRDataURL(e.id, 130); // solo id: texto corto, siempre genera }
     }));
     // Pequeña pausa entre lotes para no congelar la UI
     await new Promise(r => setTimeout(r, 10));
@@ -1327,9 +1331,16 @@ async function imprimirQR() {
 async function registrarAsistencia(qrData) {
   if (!ventanaActiva && sesion?.rol !== 'admin') { notif('⏰ Inicia la sesión primero (botón ▶)','error'); return false; }
   try {
-    const data = JSON.parse(qrData.trim());
-    const estudianteId = data.id;
-    let nombre=data.nombre||'', grado=data.grado||'', seccion=data.seccion||'';
+    // QR puede ser solo el id (nuevo formato) o JSON (formato antiguo)
+    let estudianteId, nombre='', grado='', seccion='';
+    const trimmed = qrData.trim();
+    if (trimmed.startsWith('{')) {
+      const data = JSON.parse(trimmed);
+      estudianteId = data.id;
+      nombre = data.nombre || ''; grado = data.grado || ''; seccion = data.seccion || '';
+    } else {
+      estudianteId = trimmed; // nuevo formato: solo el id
+    }
     if (!nombre) {
       const est = await fsGet('estudiantes', estudianteId);
       if (!est) { notif('❌ Estudiante no encontrado','error'); return false; }
