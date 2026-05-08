@@ -1350,7 +1350,7 @@ async function imprimirQR() {
 }
 
 async function registrarAsistencia(qrData) {
-  if (!ventanaActiva && sesion?.rol !== 'admin') { notif('⏰ Inicia la sesión primero (botón ▶)','error'); return false; }
+  if (!ventanaActiva && sesion?.rol !== 'admin' && sesion?.rol !== 'auxiliar' && sesion?.rol !== 'tutor') { notif('⏰ Inicia la sesión primero (botón ▶)','error'); return false; }
   try {
     // QR puede ser solo el id (nuevo formato) o JSON (formato antiguo)
     let estudianteId, nombre='', grado='', seccion='';
@@ -1372,7 +1372,7 @@ async function registrarAsistencia(qrData) {
     const existente = await fsQuery('asistencia', FB.where('estudianteId','==',estudianteId), FB.where('fecha','==',fecha));
     if (existente.length) { notif(`⚠️ ${nombre} ya fue registrado hoy`,'warning'); return false; }
     const hora = new Date().toLocaleTimeString('es-PE');
-    await fsAdd('asistencia',{ estudianteId, nombre, grado, seccion, fecha, hora, registradoPor: sesion?.uid||'padre' });
+    await fsAdd('asistencia',{ estudianteId, nombre, grado, seccion, fecha, hora, estado:'presente', registradoPor: sesion?.uid||'padre' });
     notif(`✅ ${nombre} — ${grado} "${seccion}" — ${hora}`,'success');
     renderListaAsistencia(); cargarTablaAsistencia(); actualizarStats();
     return true;
@@ -1500,24 +1500,14 @@ async function consultarPadre() {
 async function renderHijosInfo(hijos) {
   const fecha=getFecha();
   let presSet=new Set(), ausenteSet=new Set(), justifs=[];
-  try {
-    const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
-    presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
-    ausenteSet=new Set(asist.filter(a=>a.estado==='ausente').map(a=>a.estudianteId));
-  } catch(e) {
-    for(const h of hijos) {
-      try {
-        const r=await fsQuery('asistencia',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha));
-        if(r.length){ if(r[0].estado==='ausente') ausenteSet.add(h.id); else presSet.add(h.id); }
-      } catch(e2){}
-    }
+  for(const h of hijos) {
+    try {
+      const r=await fsQuery('asistencia',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha));
+      if(r.length){ if(r[0].estado==='ausente') ausenteSet.add(h.id); else presSet.add(h.id); }
+    } catch(e2){}
   }
-  try {
-    justifs=await fsGetAll('justificaciones');
-  } catch(e) {
-    for(const h of hijos) {
-      try { const r=await fsQuery('justificaciones',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha)); justifs.push(...r); } catch(e2){}
-    }
+  for(const h of hijos) {
+    try { const r=await fsQuery('justificaciones',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha)); justifs.push(...r); } catch(e2){}
   }
   const c=document.getElementById('padreHijosDiv');
   c.innerHTML=hijos.map(h=>{
