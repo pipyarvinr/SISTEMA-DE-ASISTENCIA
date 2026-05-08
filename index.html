@@ -138,8 +138,8 @@ function _amsk(m,mask){const sz=m.length,r2=m.map(r=>[...r]);for(let i=0;i<sz;i+
 function _pen(m){const sz=m.length;let p=0;for(let r=0;r<sz;r++){let c1=m[r][0],cn=1;for(let c=1;c<sz;c++){if(m[r][c]===c1){cn++;if(cn===5)p+=3;else if(cn>5)p++;}else{c1=m[r][c];cn=1;}}}for(let c=0;c<sz;c++){let c1=m[0][c],cn=1;for(let r=1;r<sz;r++){if(m[r][c]===c1){cn++;if(cn===5)p+=3;else if(cn>5)p++;}else{c1=m[r][c];cn=1;}}}for(let r=0;r<sz-1;r++)for(let c=0;c<sz-1;c++)if(m[r][c]===m[r][c+1]&&m[r][c]===m[r+1][c]&&m[r][c]===m[r+1][c+1])p+=3;return p;}
 function _wfmt(m,mask,ei){const sz=m.length,bits=(ei<<3)|mask,g=0x537;let rem=bits<<10;for(let i=14;i>=10;i--)if(rem&(1<<i))rem^=g<<(i-10);const fmt=((bits<<10)|rem)^0x5412;const fp=[[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];const fp2=[[sz-1,8],[sz-2,8],[sz-3,8],[sz-4,8],[sz-5,8],[sz-6,8],[sz-7,8],[8,sz-8],[8,sz-7],[8,sz-6],[8,sz-5],[8,sz-4],[8,sz-3],[8,sz-2],[8,sz-1]];for(let i=0;i<15;i++){const b=(fmt>>(14-i))&1;m[fp[i][0]][fp[i][1]]=b;m[fp2[i][0]][fp2[i][1]]=b;}}
 function _gen(text,ei){const bytes=_enc(text),version=_ver(bytes.length,ei),cw=_mkdat(bytes,version,ei);let best=null,bp=Infinity;for(let mask=0;mask<8;mask++){const m=_mat(version);_place(m,cw);const m2=_amsk(m,mask);_wfmt(m2,mask,ei);const pen=_pen(m2);if(pen<bp){bp=pen;best=m2;}}return best;}
-function toCanvas(canvas,text,opts,cb){if(typeof opts==='function'){cb=opts;opts={};}opts=opts||{};try{const ei=opts.errorCorrectionLevel==='M'?0:opts.errorCorrectionLevel==='Q'?3:opts.errorCorrectionLevel==='H'?2:0;const m=_gen(text,ei),sz=m.length,sc=Math.max(1,Math.floor((opts.width||200)/(sz+8))),mg=(opts.margin!=null?opts.margin:2)*sc,dim=sz*sc+mg*2;canvas.width=canvas.height=dim;const ctx=canvas.getContext('2d');ctx.fillStyle=(opts.color&&opts.color.light)||'#fff';ctx.fillRect(0,0,dim,dim);ctx.fillStyle=(opts.color&&opts.color.dark)||'#000';for(let r=0;r<sz;r++)for(let c=0;c<sz;c++)if(m[r][c])ctx.fillRect(mg+c*sc,mg+r*sc,sc,sc);if(cb)cb(null);}catch(e){if(cb)cb(e);}}
-function toDataURL(text,opts,cb){if(typeof opts==='function'){cb=opts;opts={};}const canvas=document.createElement('canvas');toCanvas(canvas,text,opts,function(err){if(err){if(cb)cb(err);return;}if(cb)cb(null,canvas.toDataURL('image/png'));});}
+function toCanvas(canvas,text,opts,cb){if(typeof opts==='function'){cb=opts;opts={};}opts=opts||{};try{const ei=opts.errorCorrectionLevel==='L'?0:opts.errorCorrectionLevel==='M'?1:opts.errorCorrectionLevel==='Q'?2:opts.errorCorrectionLevel==='H'?3:1;const m=_gen(text,ei),sz=m.length,sc=Math.max(1,Math.floor((opts.width||200)/(sz+8))),mg=(opts.margin!=null?opts.margin:2)*sc,dim=sz*sc+mg*2;canvas.width=canvas.height=dim;const ctx=canvas.getContext('2d');ctx.fillStyle=(opts.color&&opts.color.light)||'#fff';ctx.fillRect(0,0,dim,dim);ctx.fillStyle=(opts.color&&opts.color.dark)||'#000';for(let r=0;r<sz;r++)for(let c=0;c<sz;c++)if(m[r][c])ctx.fillRect(mg+c*sc,mg+r*sc,sc,sc);if(cb)cb(null);}catch(e){if(cb)cb(e);}}
+function toDataURL(text,opts,cb){if(typeof opts==='function'){cb=opts;opts={};}opts=opts||{};const canvas=document.createElement('canvas');toCanvas(canvas,text,opts,function(err){if(err){if(cb)cb(err);return;}if(cb)cb(null,canvas.toDataURL('image/png'));});}
 return{toCanvas,toDataURL};
 })();
 </script>
@@ -2695,22 +2695,58 @@ function detenerCamara() {
 
 function flipCam(){facingMode=facingMode==='environment'?'user':'environment';iniciarCamara();}
 
+let _scanFrameCount = 0;
 function tickScan() {
   if(!escaneando) return;
   const v=document.getElementById('scannerVideo');
-  // readyState 2 = HAVE_CURRENT_DATA, 3 = HAVE_FUTURE_DATA, 4 = HAVE_ENOUGH_DATA
   if(!v || v.readyState < 2 || v.videoWidth === 0 || v.paused){
     scannerRaf=requestAnimationFrame(tickScan);
     return;
   }
-  // Solo redimensionar el canvas si cambió el tamaño del video (evita reflow innecesario)
+
+  // Escanear cada 3 frames (reduce efecto moiré con pantallas y ahorra CPU)
+  _scanFrameCount++;
+  if(_scanFrameCount % 3 !== 0){
+    scannerRaf=requestAnimationFrame(tickScan);
+    return;
+  }
+
+  // Actualizar indicador visual cada 15 frames para confirmar que el scanner está activo
+  if(_scanFrameCount % 15 === 0){
+    const dots = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏'];
+    const statusEl = document.getElementById('scanStatus');
+    if(statusEl && statusEl.textContent.startsWith('🟢')){
+      statusEl.textContent = '🟢 Escaneando ' + dots[Math.floor(_scanFrameCount/15) % dots.length];
+    }
+  }
+
   if(scannerCanvas.width !== v.videoWidth) scannerCanvas.width = v.videoWidth;
   if(scannerCanvas.height !== v.videoHeight) scannerCanvas.height = v.videoHeight;
   scannerCtx.drawImage(v,0,0);
+
   let img;
   try { img = scannerCtx.getImageData(0,0,scannerCanvas.width,scannerCanvas.height); }
   catch(e) { scannerRaf=requestAnimationFrame(tickScan); return; }
-  const code = jsQR(img.data, img.width, img.height, {inversionAttempts:'attemptBoth'});
+
+  // Intento 1: imagen original
+  let code = jsQR(img.data, img.width, img.height, {inversionAttempts:'attemptBoth'});
+
+  // Intento 2: si falla, aplicar boost de contraste (ayuda con pantallas brillantes)
+  if(!code) {
+    const boosted = boostContraste(img);
+    code = jsQR(boosted.data, boosted.width, boosted.height, {inversionAttempts:'attemptBoth'});
+  }
+
+  // Intento 3: recorte central (descarta bordes ruidosos, enfoca centro donde está el QR)
+  if(!code) {
+    const cx = Math.floor(v.videoWidth*0.15), cy = Math.floor(v.videoHeight*0.15);
+    const cw = Math.floor(v.videoWidth*0.7),  ch = Math.floor(v.videoHeight*0.7);
+    try {
+      const cropped = scannerCtx.getImageData(cx, cy, cw, ch);
+      code = jsQR(cropped.data, cropped.width, cropped.height, {inversionAttempts:'attemptBoth'});
+    } catch(e) {}
+  }
+
   if(code && code.data){
     escaneando=false;
     const flash=document.createElement('div');
@@ -2720,11 +2756,11 @@ function tickScan() {
       if(ok) {
         setTimeout(()=>cerrarScanner(),800);
       } else {
-        // Mostrar error en el scanner y reanudar después de 2s
         document.getElementById('scanStatus').textContent='⚠️ No se pudo registrar — intenta de nuevo';
         setTimeout(()=>{
           if(document.getElementById('scannerModal').classList.contains('open')){
             escaneando=true;
+            _scanFrameCount=0;
             document.getElementById('scanStatus').textContent='🟢 Apunta al código QR del estudiante';
             tickScan();
           }
@@ -2734,6 +2770,19 @@ function tickScan() {
     return;
   }
   scannerRaf=requestAnimationFrame(tickScan);
+}
+
+// Boost de contraste para ayudar con QR en pantallas brillantes
+function boostContraste(imgData) {
+  const data = new Uint8ClampedArray(imgData.data);
+  for(let i=0; i<data.length; i+=4){
+    // Convertir a gris
+    const gray = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+    // Umbral duro: blanco o negro (binarización)
+    const val = gray > 128 ? 255 : 0;
+    data[i]=val; data[i+1]=val; data[i+2]=val;
+  }
+  return new ImageData(data, imgData.width, imgData.height);
 }
 
 async function procesarFotoQR(input) {
