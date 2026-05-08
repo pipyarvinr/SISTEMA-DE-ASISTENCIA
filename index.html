@@ -1499,10 +1499,26 @@ async function consultarPadre() {
 
 async function renderHijosInfo(hijos) {
   const fecha=getFecha();
-  const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
-  const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
-  const ausenteSet=new Set(asist.filter(a=>a.estado==='ausente').map(a=>a.estudianteId));
-  const justifs=await fsGetAll('justificaciones');
+  let presSet=new Set(), ausenteSet=new Set(), justifs=[];
+  try {
+    const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
+    presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
+    ausenteSet=new Set(asist.filter(a=>a.estado==='ausente').map(a=>a.estudianteId));
+  } catch(e) {
+    for(const h of hijos) {
+      try {
+        const r=await fsQuery('asistencia',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha));
+        if(r.length){ if(r[0].estado==='ausente') ausenteSet.add(h.id); else presSet.add(h.id); }
+      } catch(e2){}
+    }
+  }
+  try {
+    justifs=await fsGetAll('justificaciones');
+  } catch(e) {
+    for(const h of hijos) {
+      try { const r=await fsQuery('justificaciones',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha)); justifs.push(...r); } catch(e2){}
+    }
+  }
   const c=document.getElementById('padreHijosDiv');
   c.innerHTML=hijos.map(h=>{
     const pres=presSet.has(h.id), ausenteReg=ausenteSet.has(h.id);
