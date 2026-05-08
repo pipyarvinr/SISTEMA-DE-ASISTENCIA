@@ -1179,7 +1179,7 @@ async function renderEstudiantes() {
         <button class="btn btn-danger btn-sm" onclick="eliminarEstudiante('${e.id}')">🗑</button>
       </div>
     </div>`).join('');
-  lista.forEach(e => generarQR(e.id, e));
+  setTimeout(() => lista.forEach(e => generarQR(e.id, e)), 100);
 }
 
 function generarQR(id, estudiante) {
