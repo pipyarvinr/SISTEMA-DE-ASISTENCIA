@@ -1500,17 +1500,21 @@ async function consultarPadre() {
 async function renderHijosInfo(hijos) {
   const fecha=getFecha();
   let presSet=new Set(), ausenteSet=new Set(), justifs=[];
+  let _diagMsg = '';
   for(const h of hijos) {
     try {
       const r=await fsQuery('asistencia',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha));
+      _diagMsg += '\n'+h.nombre+': '+r.length+' registro(s). estado="'+(r[0]&&r[0].estado||'undefined')+'"';
       if(r.length){ if(r[0].estado==='ausente') ausenteSet.add(h.id); else presSet.add(h.id); }
-    } catch(e2){}
+    } catch(e2){ _diagMsg += '\n'+h.nombre+': ERROR — '+e2.message; }
   }
   for(const h of hijos) {
-    try { const r=await fsQuery('justificaciones',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha)); justifs.push(...r); } catch(e2){}
+    try { const r=await fsQuery('justificaciones',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha)); justifs.push(...r); } catch(e2){ _diagMsg += '\n'+h.nombre+': ERROR justif — '+e2.message; }
   }
+  console.log('[DEBUG renderHijosInfo] fecha='+fecha+_diagMsg);
   const c=document.getElementById('padreHijosDiv');
-  c.innerHTML=hijos.map(h=>{
+  const _diagHtml='<div style="background:#fffbe6;border:1px solid #f39c12;border-radius:8px;padding:10px;font-size:11px;font-family:monospace;white-space:pre-wrap;margin-bottom:12px;color:#333;">&#128269; DIAGNÓSTICO:\nFecha: '+fecha+_diagMsg+'</div>';
+  c.innerHTML=_diagHtml+hijos.map(h=>{
     const pres=presSet.has(h.id), ausenteReg=ausenteSet.has(h.id);
     const justifHoy=justifs.find(j=>j.estudianteId===h.id&&j.fecha===fecha);
     let estadoHtml='',botones='';
