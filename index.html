@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>AsistenciaQR — IE N.° 0148 MAESTRO VÍCTOR RAÚL HAYA DE LA TORRE</title>
+<meta name="theme-color" content="#c0392b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="icon" type="image/jpeg" href="logo.jpeg">
+
+<!-- Librerías QR profesionales -->
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+
+<!-- Firebase (modular) -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously, setPersistence, browserSessionPersistence } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, doc, addDoc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD56Nceo6QAnW2MlxyfSSS2MIId7zeNDxA",
+  authDomain: "sistema-de-asistencia-c213a.firebaseapp.com",
+  projectId: "sistema-de-asistencia-c213a",
+  storageBucket: "sistema-de-asistencia-c213a.firebasestorage.app",
+  appId: "1:447214728068:web:823bb8b2d22b549ab4e3d1"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+await setPersistence(auth, browserSessionPersistence);
+
+window._fb = { auth, db, collection, doc, addDoc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where, orderBy, onSnapshot, serverTimestamp, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously };
+window._fbReady = true;
+document.dispatchEvent(new Event('fbready'));
+</script>
+
+<style>
+:root {
+  --verde:#c0392b; --verde-oscuro:#922b21; --verde-claro:#e74c3c;
+  --naranja:#e67e22; --rojo:#c0392b; --azul:#2980b9; --morado:#8e44ad;
+  --gris-bg:#fdf5f5; --blanco:#fff; --texto:#2c1010; --texto-suave:#7a4f4f;
+  --borde:#f0d0d0;
+  --shadow-sm:0 1px 4px rgba(0,0,0,.08);
+  --radius:14px; --radius-sm:8px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--gris-bg);min-height:100vh;color:var(--texto);}
+.card{background:white;border-radius:var(--radius);padding:22px;margin-bottom:18px;box-shadow:var(--shadow-sm);border:1px solid var(--borde);}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border:none;border-radius:var(--radius-sm);font-weight:700;cursor:pointer;transition:all .2s;}
+.btn-primary{background:var(--verde);color:white;}
+.btn-danger{background:var(--rojo);color:white;}
+.btn-sm{padding:5px 11px;font-size:12px;}
+.btn-secondary{background:var(--azul);color:white;}
+.hide{display:none!important;}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;justify-content:center;align-items:center;backdrop-filter:blur(4px);display:none;}
+.modal.open{display:flex;}
+.modal-box{background:white;border-radius:var(--radius);padding:24px;width:450px;max-width:96vw;max-height:90vh;overflow-y:auto;}
+.students-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;max-height:460px;overflow-y:auto;}
+.student-card{background:var(--gris-bg);border-radius:var(--radius);padding:14px;text-align:center;border:2px solid transparent;}
+.student-card.presente{border-color:var(--verde);background:#fdf0ef;}
+.qr-container{width:124px;height:124px;margin:6px auto;background:white;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;padding:6px;}
+.timer-banner{background:linear-gradient(135deg,#c0392b,#922b21);padding:18px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;color:white;}
+.timer-time{font-family:'Space Mono',monospace;font-size:2.6em;font-weight:700;letter-spacing:4px;}
+.progress-bar{height:7px;background:rgba(255,255,255,.15);border-radius:99px;overflow:hidden;margin-bottom:5px;}
+.progress-fill{height:100%;background:#f1c40f;transition:width 1s linear;}
+.notif-stack{position:fixed;bottom:22px;right:22px;display:flex;flex-direction:column;gap:8px;z-index:2000;}
+.notif{padding:12px 16px;border-radius:var(--radius-sm);font-size:13px;background:white;border-left:4px solid var(--verde);box-shadow:0 2px 10px rgba(0,0,0,.1);animation:slideRight .3s ease;}
+@keyframes slideRight{from{transform:translateX(100%);opacity:0}to{transform:none;opacity:1}}
+video{width:100%;border-radius:12px;background:#000;}
+.scan-tab-bar{display:flex;border-bottom:2px solid var(--borde);margin-bottom:12px;}
+.scan-tab{flex:1;padding:10px;border:none;background:transparent;font-weight:700;cursor:pointer;}
+.scan-tab.active{color:var(--verde);border-bottom:2px solid var(--verde);}
+.filtros{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="splashScreen" style="position:fixed;inset:0;background:#c0392b;display:flex;align-items:center;justify-content:center;z-index:9999;"><div style="color:white;">📚 Cargando...</div></div>
+
+<!-- LOGIN -->
+<div id="loginScreen" style="display:none;">
+  <div class="card" style="max-width:400px;margin:40px auto;">
+    <h3>🔐 Acceso</h3>
+    <div style="display:flex;gap:8px;margin:12px 0;" id="roleSelector">
+      <button class="btn btn-secondary" onclick="selRol('admin')">👑 Admin</button>
+      <button class="btn btn-secondary" onclick="selRol('auxiliar')">🛡️ Auxiliar</button>
+      <button class="btn btn-secondary" onclick="selRol('tutor')">📖 Tutor</button>
+      <button class="btn btn-secondary" onclick="selRol('padre')">👪 Padre</button>
+    </div>
+    <div id="loginCredDiv">
+      <input type="email" id="loginUser" placeholder="Correo" style="width:100%;padding:10px;margin:6px 0;">
+      <input type="password" id="loginPass" placeholder="Contraseña" style="width:100%;padding:10px;margin:6px 0;">
+    </div>
+    <div id="loginPadreDiv" class="hide">
+      <input type="text" id="loginDNI" placeholder="Tu DNI" style="width:100%;padding:10px;margin:6px 0;">
+    </div>
+    <button class="btn btn-primary" id="loginBtn" style="width:100%;margin-top:12px;" onclick="hacerLogin()">Ingresar</button>
+    <div id="loginErr" style="color:red;margin-top:10px;"></div>
+  </div>
+</div>
+
+<!-- APP PRINCIPAL -->
+<div id="appLayout" style="display:none;">
+  <div style="background:#922b21;color:white;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;">
+    <span>📚 IE N.° 0148 – AsistenciaQR</span>
+    <div><span id="sessionBadge"></span> <button onclick="cerrarSesion()" style="background:transparent;border:none;color:white;">🚪 Salir</button></div>
+  </div>
+  <!-- Timer -->
+  <div class="timer-banner" id="timerBanner">
+    <div class="timer-time" id="timerDisplay">--:--</div>
+    <div style="flex:1;"><div class="progress-bar"><div id="progressFill" class="progress-fill" style="width:0%"></div></div></div>
+    <div><button class="btn btn-primary btn-sm" onclick="iniciarSesion()">▶ Iniciar</button> <button class="btn btn-danger btn-sm" onclick="finalizarSesion()">■ Finalizar</button> <button id="btnModoPrueba" class="btn btn-sm" style="background:#f39c12; display:none;" onclick="iniciarModoPrueba()">🔧 Modo prueba</button></div>
+  </div>
+  <!-- Navegación -->
+  <div style="display:flex;gap:6px;padding:8px 16px;background:#f0e0e0;flex-wrap:wrap;">
+    <button onclick="irPanel('asistencia')">📋 Asistencia</button>
+    <button onclick="irPanel('admin')">👑 Admin</button>
+    <button onclick="irPanel('justificaciones')">📄 Justificaciones</button>
+    <button onclick="irPanel('reportes')">📊 Reportes</button>
+    <button onclick="irPanel('padre')">👪 Mi Hijo</button>
+  </div>
+  <div class="content" style="padding:16px;">
+    <!-- PANEL ASISTENCIA -->
+    <div id="panel_asistencia" class="hide">
+      <div class="card">
+        <h3>📷 Escáner QR</h3>
+        <button class="btn btn-primary" onclick="abrirScanner()">Abrir cámara</button>
+        <input type="file" id="photoUpload" accept="image/*" style="margin:12px 0;">
+        <div id="scanResult"></div>
+      </div>
+      <div class="filtros">
+        <select id="fGradoAux" onchange="renderListaAsistencia()"><option value="">Todos los grados</option><option>1ro</option><option>2do</option><option>3ro</option><option>4to</option><option>5to</option></select>
+        <select id="fSecAux" onchange="renderListaAsistencia()"><option value="">Todas las secciones</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select>
+      </div>
+      <div id="listaAsistencia" class="students-grid"></div>
+      <div class="card"><h3>Registro del día</h3><div id="tablaAsistencia"></div></div>
+    </div>
+    <!-- PANEL ADMIN -->
+    <div id="panel_admin" class="hide">
+      <div class="card"><h3>➕ Agregar estudiante</h3><input type="text" id="sNombre" placeholder="Nombre completo"><input type="text" id="sDNI" placeholder="DNI apoderado (8 dígitos)" maxlength="8"><select id="sGrado"><option>1ro</option><option>2do</option><option>3ro</option><option>4to</option><option>5to</option></select><select id="sSeccion"><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select><button class="btn btn-primary" onclick="agregarEstudiante()">Guardar</button></div>
+      <div class="card"><h3>👨‍🎓 Estudiantes <button class="btn btn-sm" onclick="imprimirQRMasivo()">🖨 Imprimir QRs</button></h3><div class="filtros"><select id="fGradoAdmin" onchange="renderEstudiantes()"><option value="">Todos los grados</option><option>1ro</option><option>2do</option><option>3ro</option><option>4to</option><option>5to</option></select><select id="fSecAdmin" onchange="renderEstudiantes()"><option value="">Todas las secciones</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select></div><div id="listaEstudiantes" class="students-grid"></div></div>
+      <div class="card"><h3>👥 Usuarios</h3><button class="btn btn-sm" onclick="abrirModalUsuario()">+ Nuevo usuario</button><div id="listaUsuarios"></div></div>
+    </div>
+    <!-- PANEL JUSTIFICACIONES -->
+    <div id="panel_justificaciones" class="hide">
+      <div id="alertasBanner"></div>
+      <div class="filtros"><select id="fJustifEstado" onchange="renderJustificaciones()"><option value="">Todos</option><option value="pendiente">Pendiente</option><option value="aprobado">Aprobado</option><option value="alerta">Alerta</option></select></div>
+      <div id="listaJustificaciones"></div>
+    </div>
+    <!-- PANEL REPORTES -->
+    <div id="panel_reportes" class="hide">
+      <div class="card">
+        <h3>📊 Reportes</h3>
+        <div class="filtros"><select id="rGrado"><option value="">Todos los grados</option><option>1ro</option><option>2do</option><option>3ro</option><option>4to</option><option>5to</option></select><select id="rSeccion"><option value="">Todas</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select><input type="date" id="rFechaInicio"><input type="date" id="rFechaFin"><button class="btn btn-sm" onclick="generarReporte()">Actualizar</button><button class="btn btn-sm" onclick="exportarExcel()">📥 Excel</button></div>
+        <canvas id="chartDia" style="max-height:200px;margin:16px 0;"></canvas>
+        <div id="tablaReporte"></div>
+      </div>
+    </div>
+    <!-- PANEL PADRE -->
+    <div id="panel_padre" class="hide">
+      <div class="card"><input type="text" id="dniPadre" placeholder="Tu DNI" maxlength="8"><button class="btn btn-primary" onclick="consultarPadre()">Consultar</button><div id="hijosInfo"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALES -->
+<div id="scannerModal" class="modal"><div class="modal-box" style="padding:0;"><div class="scan-tab-bar"><button class="scan-tab active" onclick="switchScanTab('camera')">📷 Cámara</button><button class="scan-tab" onclick="switchScanTab('photo')">🖼 Foto</button><button class="scan-tab" onclick="switchScanTab('manual')">⌨️ Manual</button></div><div id="spCamera"><video id="scannerVideo" autoplay playsinline muted></video><div id="scanStatus">Iniciando cámara...</div><button onclick="flipCam()" class="btn btn-sm">🔄 Girar</button></div><div id="spPhoto" style="display:none;"><input type="file" id="photoInput" accept="image/*"><div id="photoPreview"></div></div><div id="spManual" style="display:none;"><input type="text" id="manualInput" placeholder="Nombre del estudiante"><div id="manualResultados"></div></div><button onclick="cerrarScanner()" class="btn btn-secondary" style="margin:12px;">Cerrar</button></div></div>
+<div id="modalUsuario" class="modal"><div class="modal-box"><h3>Nuevo usuario</h3><input type="text" id="uNombre" placeholder="Nombre"><input type="email" id="uEmail" placeholder="Correo"><input type="password" id="uPass" placeholder="Contraseña (mín 6)"><select id="uRol"><option value="auxiliar">Auxiliar</option><option value="tutor">Tutor</option><option value="admin">Admin</option></select><div id="asignacionDiv"><select id="uGrados" multiple><option value="1ro">1ro</option><option value="2do">2do</option><option value="3ro">3ro</option><option value="4to">4to</option><option value="5to">5to</option></select><select id="uSecciones" multiple><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="E">E</option></select></div><button class="btn btn-primary" onclick="guardarUsuario()">Guardar</button><button onclick="cerrarModalUsuario()">Cancelar</button></div></div>
+<div id="modalJustif" class="modal"><div class="modal-box"><h3>Justificar inasistencia</h3><div id="justifEstudInfo"></div><div class="motivo-grid" id="motivoGrid"><button onclick="selMotivo('enfermedad')">🤒 Enfermedad</button><button onclick="selMotivo('cita')">🏥 Cita médica</button><button onclick="selMotivo('familiar')">👨‍👩‍👧 Familiar</button><button onclick="selMotivo('otro')">📝 Otro</button><button onclick="selMotivo('alerta')" style="background:#fdf2f0;">🚨 No llegó al colegio</button></div><textarea id="justifDetalle" placeholder="Descripción (obligatorio)"></textarea><input type="file" id="evidenciaInput" accept="image/*"><div id="evidenciaPreview"></div><button class="btn btn-primary" onclick="enviarJustificacion()">Enviar</button><button onclick="cerrarModalJustif()">Cancelar</button></div></div>
+<div id="modalEvidencia" class="modal"><div class="modal-box"><img id="evidenciaFullImg" style="max-width:100%;"><button onclick="cerrarModalEvidencia()">Cerrar</button></div></div>
+<div id="modalBoleta" class="modal"><div class="modal-box"><div id="boletaContent"></div><button onclick="imprimirBoleta()">🖨 Imprimir</button><button onclick="cerrarModalBoleta()">Cerrar</button></div></div>
+<div class="notif-stack" id="notifStack"></div>
+
+<script>
+// ======================== CÓDIGO COMPLETO ========================
+let FB = null, sesion = null;
+let estudiantesCache = [], asistenciaCache = [], justificacionesCache = [];
+let ventanaActiva = false, tiempoRestante = 0, temporizador = null;
+let scannerStream = null, escaneando = false, scanAnimationId = null, facingMode = 'environment';
+let chartDia = null, justifEstudianteId = null, motivoSel = null, evidenciaBase64 = null;
+let _listeners = {};
+const OFFLINE_QUEUE_KEY = 'asistenciaQR_offline';
+
+// Esperar Firebase
+function esperarFB() {
+  if (window._fbReady && window._fb) {
+    FB = window._fb;
+    document.getElementById('splashScreen').style.display = 'none';
+    document.getElementById('loginScreen').style.display = 'block';
+    FB.onAuthStateChanged(FB.auth, async (user) => {
+      if (user && !sesion) {
+        const snap = await FB.getDoc(FB.doc(FB.db, 'usuarios', user.uid));
+        if (snap.exists()) sesion = { uid: user.uid, ...snap.data() };
+        entrarApp();
+      }
+    });
+  } else setTimeout(esperarFB, 100);
+}
+esperarFB();
+
+// LOGIN
+let rolSel = 'admin';
+function selRol(rol) { rolSel = rol; const esPadre = rol === 'padre'; document.getElementById('loginCredDiv').classList.toggle('hide', esPadre); document.getElementById('loginPadreDiv').classList.toggle('hide', !esPadre); document.getElementById('loginBtn').onclick = esPadre ? hacerLoginPadre : hacerLogin; }
+async function hacerLogin() {
+  const email = document.getElementById('loginUser').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  if (!email || !pass) return notif('Complete campos', 'error');
+  try { await FB.signInWithEmailAndPassword(FB.auth, email, pass); } catch(e) { document.getElementById('loginErr').innerText = e.message; }
+}
+async function hacerLoginPadre() {
+  const dni = document.getElementById('loginDNI').value.trim();
+  if (!/^\d{8}$/.test(dni)) return notif('DNI inválido', 'error');
+  try {
+    if (!FB.auth.currentUser?.isAnonymous) await FB.signInAnonymously(FB.auth);
+    const q = FB.query(FB.collection(FB.db, 'estudiantes'), FB.where('dniPadre', '==', dni));
+    const snap = await FB.getDocs(q);
+    if (snap.empty) return notif('No hay estudiantes con ese DNI', 'error');
+    sesion = { uid: 'padre_'+dni, nombre: 'Apoderado', rol: 'padre', dni };
+    entrarApp(); irPanel('padre'); document.getElementById('dniPadre').value = dni; consultarPadre();
+  } catch(e) { notif(e.message, 'error'); }
+}
+async function entrarApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appLayout').style.display = 'block';
+  document.getElementById('sessionBadge').innerHTML = `${sesion.rol==='admin'?'👑':(sesion.rol==='auxiliar'?'🛡️':'📖')} ${sesion.nombre||sesion.email||'Usuario'}`;
+  if (sesion.rol === 'padre') document.querySelectorAll('[onclick*="irPanel"]').forEach(btn => { if(!btn.innerText.includes('Mi Hijo')) btn.style.display='none'; });
+  if (sesion.rol === 'admin') document.getElementById('btnModoPrueba').style.display = '';
+  await cargarDatosIniciales();
+  activarListeners();
+  irPanel('asistencia');
+}
+async function cargarDatosIniciales() {
+  try {
+    const snapEst = await FB.getDocs(FB.collection(FB.db, 'estudiantes'));
+    estudiantesCache = snapEst.docs.map(d => ({ id: d.id, ...d.data() }));
+    const fecha = new Date().toISOString().split('T')[0];
+    const snapAsis = await FB.getDocs(FB.query(FB.collection(FB.db, 'asistencia'), FB.where('fecha', '==', fecha)));
+    asistenciaCache = snapAsis.docs.map(d => ({ id: d.id, ...d.data() }));
+    const snapJust = await FB.getDocs(FB.collection(FB.db, 'justificaciones'));
+    justificacionesCache = snapJust.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch(e) { console.error(e); }
+}
+function activarListeners() {
+  if (_listeners.est) _listeners.est();
+  _listeners.est = FB.onSnapshot(FB.collection(FB.db, 'estudiantes'), snap => { estudiantesCache = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderEstudiantes(); renderListaAsistencia(); });
+  const fecha = new Date().toISOString().split('T')[0];
+  if (_listeners.asis) _listeners.asis();
+  _listeners.asis = FB.onSnapshot(FB.query(FB.collection(FB.db, 'asistencia'), FB.where('fecha', '==', fecha)), snap => { asistenciaCache = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderListaAsistencia(); actualizarStats(); });
+  if (_listeners.just) _listeners.just();
+  _listeners.just = FB.onSnapshot(FB.collection(FB.db, 'justificaciones'), snap => { justificacionesCache = snap.docs.map(d => ({ id: d.id, ...d.data() })); renderJustificaciones(); });
+}
+function cerrarSesion() {
+  if (temporizador) clearInterval(temporizador); ventanaActiva = false; detenerCamara();
+  Object.values(_listeners).forEach(u => { try { u(); } catch(e) {} });
+  sesion = null; FB.signOut(FB.auth);
+  document.getElementById('appLayout').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'block';
+}
+// TIMER
+function iniciarSesion() {
+  if (ventanaActiva) return notif('Ya activa', 'warning');
+  const ahora = new Date(), hora = ahora.getHours(), min = ahora.getMinutes();
+  if (!(hora === 13 || (hora === 14 && min === 0)) && sesion?.rol !== 'admin') return notif('Solo 1pm-2pm', 'error');
+  let seg = 3600;
+  if (sesion?.rol !== 'admin') {
+    const fin = new Date(); fin.setHours(14,0,0,0);
+    seg = Math.max(0, Math.floor((fin - ahora)/1000));
+    if (seg <= 0) return notif('Fuera de horario', 'error');
+  }
+  tiempoRestante = seg; ventanaActiva = true; actualizarTimer();
+  if (temporizador) clearInterval(temporizador);
+  temporizador = setInterval(() => { if (tiempoRestante <= 0) finalizarSesion(); else { tiempoRestante--; actualizarTimer(); } }, 1000);
+  notif('Sesión iniciada', 'success');
+}
+function finalizarSesion() { if (temporizador) clearInterval(temporizador); ventanaActiva = false; document.getElementById('timerDisplay').innerText = '--:--'; document.getElementById('progressFill').style.width = '0%'; notif('Sesión finalizada', 'info'); }
+function actualizarTimer() {
+  if (sesion?.rol === 'admin' && tiempoRestante > 3600) { document.getElementById('timerDisplay').innerText = '∞'; document.getElementById('progressFill').style.width = '100%'; return; }
+  const m = Math.floor(tiempoRestante/60).toString().padStart(2,'0');
+  const s = (tiempoRestante%60).toString().padStart(2,'0');
+  document.getElementById('timerDisplay').innerText = `${m}:${s}`;
+  document.getElementById('progressFill').style.width = `${(tiempoRestante/3600)*100}%`;
+}
+function iniciarModoPrueba() { if (sesion?.rol !== 'admin') return notif('Solo admin', 'error'); ventanaActiva = true; tiempoRestante = 3600; actualizarTimer(); notif('Modo prueba activo', 'info'); }
+// NAVEGACIÓN
+function irPanel(panel) {
+  ['asistencia','admin','justificaciones','reportes','padre'].forEach(p => document.getElementById(`panel_${p}`).classList.add('hide'));
+  document.getElementById(`panel_${panel}`).classList.remove('hide');
+  if (panel === 'admin') { renderEstudiantes(); renderListaUsuarios(); }
+  if (panel === 'asistencia') renderListaAsistencia();
+  if (panel === 'justificaciones') renderJustificaciones();
+  if (panel === 'reportes') generarReporte();
+}
+// ESTUDIANTES
+async function agregarEstudiante() {
+  const nombre = document.getElementById('sNombre').value.trim();
+  const dniPadre = document.getElementById('sDNI').value.trim();
+  const grado = document.getElementById('sGrado').value;
+  const seccion = document.getElementById('sSeccion').value;
+  if (!nombre || !dniPadre || !/^\d{8}$/.test(dniPadre)) return notif('Nombre y DNI válido', 'error');
+  await FB.addDoc(FB.collection(FB.db, 'estudiantes'), { nombre, dniPadre, grado, seccion, telefono: '' });
+  notif('Estudiante agregado', 'success');
+  document.getElementById('sNombre').value = ''; document.getElementById('sDNI').value = '';
+}
+function renderEstudiantes() {
+  const container = document.getElementById('listaEstudiantes');
+  if (!container) return;
+  let lista = [...estudiantesCache];
+  const gf = document.getElementById('fGradoAdmin')?.value;
+  const sf = document.getElementById('fSecAdmin')?.value;
+  if (gf) lista = lista.filter(e => e.grado === gf);
+  if (sf) lista = lista.filter(e => e.seccion === sf);
+  if (!lista.length) { container.innerHTML = '<div style="text-align:center;padding:20px;">Sin estudiantes</div>'; return; }
+  container.innerHTML = lista.map(e => `
+    <div class="student-card"><strong>${escapeHtml(e.nombre)}</strong><br>${e.grado} - ${e.seccion}<br>DNI: ${e.dniPadre}
+    <div id="qr_${e.id}" class="qr-container"></div><button class="btn btn-sm" onclick="descargarQR('${e.id}')">📥 QR</button>
+    <button class="btn btn-sm btn-danger" onclick="eliminarEstudiante('${e.id}')">🗑</button></div>
+  `).join('');
+  lista.forEach(e => { const div = document.getElementById(`qr_${e.id}`); if(div) QRCode.toCanvas(div.appendChild(document.createElement('canvas')), e.id, { width:120, margin:4, errorCorrectionLevel:'H' }); });
+}
+async function eliminarEstudiante(id) { if(confirm('¿Eliminar?')) await FB.deleteDoc(FB.doc(FB.db, 'estudiantes', id)); notif('Eliminado','info'); }
+function descargarQR(id) { const e = estudiantesCache.find(e=>e.id===id); if(!e) return; QRCode.toDataURL(id, { width:280, margin:4, errorCorrectionLevel:'H' }, (err,url)=>{ if(!err){ const a=document.createElement('a'); a.href=url; a.download=`QR_${e.nombre}.png`; a.click(); } }); }
+async function imprimirQRMasivo() {
+  let lista = estudiantesCache;
+  const gf = document.getElementById('fGradoAdmin')?.value, sf = document.getElementById('fSecAdmin')?.value;
+  if (gf) lista = lista.filter(e=>e.grado===gf);
+  if (sf) lista = lista.filter(e=>e.seccion===sf);
+  let html = '<html><head><style>.tarjeta{display:inline-block;width:200px;margin:6px;border:1px solid #ccc;padding:8px;text-align:center;}</style></head><body>';
+  for(const e of lista){
+    const qr = await new Promise(res => QRCode.toDataURL(e.id, {width:160, margin:4}, (err,url)=>res(url)));
+    html += `<div class="tarjeta"><img src="${qr}" width="120"><br><strong>${e.nombre}</strong><br>${e.grado} - ${e.seccion}</div>`;
+  }
+  html += '</body></html>';
+  const w = window.open(); w.document.write(html); w.document.close(); w.print();
+}
+// ASISTENCIA
+async function registrarAsistencia(qrData) {
+  if (!ventanaActiva && sesion?.rol !== 'admin') return notif('Inicie sesión de asistencia', 'error');
+  let estudianteId = qrData.trim();
+  if (estudianteId.startsWith('{')) try { estudianteId = JSON.parse(estudianteId).id; } catch(e){}
+  const est = estudiantesCache.find(e=>e.id===estudianteId);
+  if(!est) return notif('Estudiante no encontrado','error');
+  const fecha = new Date().toISOString().split('T')[0];
+  if(asistenciaCache.some(a=>a.estudianteId===estudianteId && a.fecha===fecha)) return notif(`${est.nombre} ya registrado`,'warning');
+  const hora = new Date().toLocaleTimeString();
+  const data = { estudianteId, nombre:est.nombre, grado:est.grado, seccion:est.seccion, fecha, hora, estado:'presente' };
+  try {
+    await FB.addDoc(FB.collection(FB.db, 'asistencia'), data);
+    notif(`✅ ${est.nombre} presente`,'success');
+  } catch(e){
+    let cola = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY)||'[]');
+    cola.push(data); localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(cola));
+    notif(`📦 ${est.nombre} guardado offline`,'warning');
+  }
+  renderListaAsistencia();
+}
+function renderListaAsistencia() {
+  const container = document.getElementById('listaAsistencia');
+  if(!container) return;
+  let lista = [...estudiantesCache];
+  const gf = document.getElementById('fGradoAux')?.value, sf = document.getElementById('fSecAux')?.value;
+  if(gf) lista = lista.filter(e=>e.grado===gf);
+  if(sf) lista = lista.filter(e=>e.seccion===sf);
+  const fecha = new Date().toISOString().split('T')[0];
+  const presentes = new Set(asistenciaCache.filter(a=>a.fecha===fecha).map(a=>a.estudianteId));
+  container.innerHTML = lista.map(e=>`
+    <div class="student-card ${presentes.has(e.id)?'presente':''}">
+      <strong>${escapeHtml(e.nombre)}</strong><br>${e.grado} - ${e.seccion}<br>
+      ${presentes.has(e.id)?'✅ Presente':`<button class="btn btn-primary btn-sm" onclick="registrarAsistencia('${e.id}')">Marcar presente</button>`}
+    </div>
+  `).join('');
+  const tbody = document.getElementById('tablaAsistencia');
+  if(tbody) tbody.innerHTML = asistenciaCache.filter(a=>a.fecha===fecha).map(a=>`<div>${a.nombre} - ${a.hora}</div>`).join('');
+}
+// JUSTIFICACIONES
+function abrirJustif(id) { justifEstudianteId = id; motivoSel=null; evidenciaBase64=null; document.getElementById('justifEstudInfo').innerText = estudiantesCache.find(e=>e.id===id)?.nombre||''; document.getElementById('modalJustif').classList.add('open'); }
+function selMotivo(m) { motivoSel=m; document.getElementById('justifDetalle').focus(); }
+function previsualizarEvidencia(input) { const file=input.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=e=>{ evidenciaBase64=e.target.result; document.getElementById('evidenciaPreview').innerHTML=`<img src="${evidenciaBase64}" style="max-width:100px;">`; }; reader.readAsDataURL(file); }
+async function enviarJustificacion() {
+  if(!justifEstudianteId||!motivoSel) return notif('Seleccione motivo','error');
+  const detalle = document.getElementById('justifDetalle').value.trim();
+  if(!detalle && motivoSel!=='alerta') return notif('Descripción obligatoria','error');
+  const est = estudiantesCache.find(e=>e.id===justifEstudianteId);
+  const fecha = new Date().toISOString().split('T')[0];
+  const data = { estudianteId:justifEstudianteId, nombre:est.nombre, grado:est.grado, seccion:est.seccion, fecha, hora:new Date().toLocaleTimeString(), motivo:motivoSel, detalle, evidencia:evidenciaBase64||null, estado:motivoSel==='alerta'?'alerta':'pendiente', telefono:est.telefono||'' };
+  await FB.addDoc(FB.collection(FB.db, 'justificaciones'), data);
+  notif('Justificación enviada','success');
+  document.getElementById('modalJustif').classList.remove('open');
+}
+async function cambiarEstadoJustif(id, estado) {
+  const ahora = new Date(), vence = new Date(ahora.getTime()+48*60*60*1000);
+  await FB.updateDoc(FB.doc(FB.db, 'justificaciones', id), { estado, validadoEn:ahora.toISOString(), venceEn:vence.toISOString(), validadoPor:sesion?.nombre||'Admin' });
+  notif(`Justificación ${estado}`, 'success');
+  if(estado==='aprobado') generarBoleta(id);
+}
+async function generarBoleta(id) { const j = await FB.getDoc(FB.doc(FB.db, 'justificaciones', id)); if(!j.exists()) return; const data=j.data(); const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>body{font-family:Arial;padding:20px;} .boleta{border:1px solid #ccc;padding:20px;max-width:400px;margin:auto;}</style></head><body><div class="boleta"><h2>IE N.° 0148</h2><p>Boleta de justificación</p><p><strong>Estudiante:</strong> ${data.nombre}</p><p><strong>Grado:</strong> ${data.grado} - ${data.seccion}</p><p><strong>Fecha inasistencia:</strong> ${data.fecha}</p><p><strong>Motivo:</strong> ${data.motivo}</p><p><strong>Validado por:</strong> ${data.validadoPor}</p><p><strong>Válido hasta:</strong> ${new Date(data.venceEn).toLocaleString()}</p><hr><p>Presente esta boleta en la institución.</p></div></body></html>`; const w=window.open(); w.document.write(html); w.document.close(); w.print(); }
+function renderJustificaciones() {
+  const container = document.getElementById('listaJustificaciones'); if(!container) return;
+  let lista = justificacionesCache;
+  const estado = document.getElementById('fJustifEstado')?.value;
+  if(estado) lista = lista.filter(j=>j.estado===estado);
+  container.innerHTML = lista.map(j=>`<div class="card"><strong>${j.nombre}</strong> (${j.grado} - ${j.seccion})<br>Motivo: ${j.motivo}<br>${j.detalle||''}<br>Estado: ${j.estado}${j.evidencia?` <button onclick="verEvidencia('${j.evidencia}')">Ver evidencia</button>`:''}<br>${j.estado==='pendiente'?`<button onclick="cambiarEstadoJustif('${j.id}','aprobado')">Aprobar</button> <button onclick="cambiarEstadoJustif('${j.id}','rechazado')">Rechazar</button>`:''}</div>`).join('');
+}
+function verEvidencia(src) { document.getElementById('evidenciaFullImg').src=src; document.getElementById('modalEvidencia').classList.add('open'); }
+// REPORTES
+async function generarReporte() {
+  const grado = document.getElementById('rGrado')?.value, seccion = document.getElementById('rSeccion')?.value;
+  let asistencias = await FB.getDocs(FB.collection(FB.db, 'asistencia'));
+  let lista = asistencias.docs.map(d=>d.data());
+  if(grado) lista = lista.filter(a=>a.grado===grado);
+  if(seccion) lista = lista.filter(a=>a.seccion===seccion);
+  const fechas = [...new Set(lista.map(a=>a.fecha))].slice(-7);
+  const dataDia = fechas.map(f=>lista.filter(a=>a.fecha===f).length);
+  if(chartDia) chartDia.destroy();
+  chartDia = new Chart(document.getElementById('chartDia'), { type:'line', data:{ labels:fechas, datasets:[{ label:'Asistencias', data:dataDia, borderColor:'#c0392b' }] } });
+  document.getElementById('tablaReporte').innerHTML = lista.slice(0,30).map(a=>`<div>${a.nombre} - ${a.fecha} ${a.hora}</div>`).join('');
+}
+function exportarExcel() {
+  const wsData = [['Nombre','Grado','Sección','Fecha','Hora','Estado']];
+  asistenciaCache.forEach(a=>wsData.push([a.nombre, a.grado, a.seccion, a.fecha, a.hora, a.estado||'presente']));
+  const wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(wsData);
+  XLSX.utils.book_append_sheet(wb, ws, 'Asistencia');
+  XLSX.writeFile(wb, `asistencia_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+// PANEL PADRE
+async function consultarPadre() {
+  const dni = document.getElementById('dniPadre').value.trim();
+  const hijos = estudiantesCache.filter(e=>e.dniPadre===dni);
+  const container = document.getElementById('hijosInfo');
+  if(!hijos.length) { container.innerHTML='<p>No hay hijos con ese DNI</p>'; return; }
+  const fecha = new Date().toISOString().split('T')[0];
+  const presentes = new Set(asistenciaCache.filter(a=>a.fecha===fecha).map(a=>a.estudianteId));
+  container.innerHTML = hijos.map(h=>`<div class="card"><strong>${h.nombre}</strong><br>Estado: ${presentes.has(h.id)?'✅ Presente':'❌ Ausente'}${!presentes.has(h.id)?` <button onclick="abrirJustif('${h.id}')">Justificar</button>`:''}</div>`).join('');
+}
+// ESCÁNER QR
+async function abrirScanner() { document.getElementById('scannerModal').classList.add('open'); switchScanTab('camera'); await iniciarCamara(); }
+function switchScanTab(tab) { document.getElementById('spCamera').style.display=tab==='camera'?'block':'none'; document.getElementById('spPhoto').style.display=tab==='photo'?'block':'none'; document.getElementById('spManual').style.display=tab==='manual'?'block':'none'; if(tab==='camera') iniciarCamara(); if(tab==='photo') document.getElementById('photoInput').onchange=procesarFotoQR; if(tab==='manual') document.getElementById('manualInput').oninput=buscarManual; }
+async function iniciarCamara() { detenerCamara(); try { const stream = await navigator.mediaDevices.getUserMedia({ video: { width:640, height:480, facingMode:{exact:facingMode} } }); const video=document.getElementById('scannerVideo'); video.srcObject=stream; scannerStream=stream; await video.play(); escaneando=true; scanLoop(); } catch(e) { document.getElementById('scanStatus').innerText='Error cámara: '+e.message; } }
+function detenerCamara() { escaneando=false; if(scanAnimationId) cancelAnimationFrame(scanAnimationId); if(scannerStream){ scannerStream.getTracks().forEach(t=>t.stop()); scannerStream=null; } }
+async function scanLoop() { if(!escaneando) return; const video=document.getElementById('scannerVideo'); if(video.readyState<2){ scanAnimationId=requestAnimationFrame(scanLoop); return; } let w=video.videoWidth, h=video.videoHeight; const maxDim=800; if(w>maxDim||h>maxDim){ const r=Math.min(maxDim/w,maxDim/h); w=Math.floor(w*r); h=Math.floor(h*r); } const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h; canvas.getContext('2d').drawImage(video,0,0,w,h); const imgData=canvas.getContext('2d').getImageData(0,0,w,h); const code=jsQR(imgData.data,w,h,{inversionAttempts:'attemptBoth'}); if(code){ detenerCamara(); document.getElementById('scannerModal').classList.remove('open'); registrarAsistencia(code.data); return; } scanAnimationId=requestAnimationFrame(scanLoop); }
+function flipCam() { facingMode = facingMode==='environment'?'user':'environment'; iniciarCamara(); }
+async function procesarFotoQR(e) { const file=e.target.files[0]; if(!file) return; const img=new Image(); img.src=URL.createObjectURL(file); img.onload=async()=>{ let w=img.width, h=img.height; const maxDim=800; if(w>maxDim||h>maxDim){ const r=Math.min(maxDim/w,maxDim/h); w=Math.floor(w*r); h=Math.floor(h*r); } const canvas=document.createElement('canvas'); canvas.width=w; canvas.height=h; canvas.getContext('2d').drawImage(img,0,0,w,h); const imgData=canvas.getContext('2d').getImageData(0,0,w,h); const code=jsQR(imgData.data,w,h,{inversionAttempts:'attemptBoth'}); if(code) await registrarAsistencia(code.data); else alert('No se detectó QR'); URL.revokeObjectURL(img.src); }; }
+function buscarManual() { const q=document.getElementById('manualInput').value.trim().toLowerCase(); const resultados=estudiantesCache.filter(e=>e.nombre.toLowerCase().includes(q)).slice(0,5); document.getElementById('manualResultados').innerHTML=resultados.map(e=>`<div onclick="registrarAsistencia('${e.id}')">${e.nombre} (${e.grado} - ${e.seccion})</div>`).join(''); }
+function cerrarScanner() { detenerCamara(); document.getElementById('scannerModal').classList.remove('open'); }
+// USUARIOS
+async function renderListaUsuarios() { const users=await FB.getDocs(FB.collection(FB.db, 'usuarios')); document.getElementById('listaUsuarios').innerHTML=users.docs.map(d=>`<div>${d.data().nombre} (${d.data().rol}) - ${d.data().email}</div>`).join(''); }
+function abrirModalUsuario() { document.getElementById('modalUsuario').classList.add('open'); }
+function cerrarModalUsuario() { document.getElementById('modalUsuario').classList.remove('open'); }
+async function guardarUsuario() { const nombre=document.getElementById('uNombre').value.trim(), email=document.getElementById('uEmail').value.trim(), pass=document.getElementById('uPass').value, rol=document.getElementById('uRol').value; if(!nombre||!email||pass.length<6) return notif('Complete campos','error'); try { const cred=await FB.createUserWithEmailAndPassword(FB.auth,email,pass); await FB.setDoc(FB.doc(FB.db,'usuarios',cred.user.uid),{nombre,email,rol,grados:[...document.getElementById('uGrados').selectedOptions].map(o=>o.value),secciones:[...document.getElementById('uSecciones').selectedOptions].map(o=>o.value)}); await FB.signOut(FB.auth); notif('Usuario creado, vuelva a iniciar sesión','success'); cerrarModalUsuario(); } catch(e){ notif(e.message,'error'); } }
+// NOTIFICACIONES Y UTILS
+function notif(msg, tipo) { const s=document.getElementById('notifStack'); const el=document.createElement('div'); el.className='notif'; el.innerText=msg; s.appendChild(el); setTimeout(()=>el.remove(),4000); }
+function escapeHtml(s) { return String(s).replace(/[&<>]/g, function(m){ if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+function actualizarStats() {}
+function cerrarModalJustif() { document.getElementById('modalJustif').classList.remove('open'); }
+function cerrarModalEvidencia() { document.getElementById('modalEvidencia').classList.remove('open'); }
+function cerrarModalBoleta() { document.getElementById('modalBoleta').classList.remove('open'); }
+function imprimirBoleta() { const html=document.getElementById('boletaContent').innerHTML; const w=window.open(); w.document.write(html); w.document.close(); w.print(); }
+// Registrar funciones globales
+window.agregarEstudiante=agregarEstudiante; window.descargarQR=descargarQR; window.registrarAsistencia=registrarAsistencia; window.abrirScanner=abrirScanner; window.cerrarScanner=cerrarScanner; window.irPanel=irPanel; window.hacerLogin=hacerLogin; window.cerrarSesion=cerrarSesion; window.consultarPadre=consultarPadre; window.selRol=selRol; window.iniciarSesion=iniciarSesion; window.finalizarSesion=finalizarSesion; window.eliminarEstudiante=eliminarEstudiante; window.cambiarEstadoJustif=cambiarEstadoJustif; window.generarReporte=generarReporte; window.exportarExcel=exportarExcel; window.abrirModalUsuario=abrirModalUsuario; window.cerrarModalUsuario=cerrarModalUsuario; window.guardarUsuario=guardarUsuario; window.imprimirQRMasivo=imprimirQRMasivo; window.abrirJustif=abrirJustif; window.selMotivo=selMotivo; window.previsualizarEvidencia=previsualizarEvidencia; window.enviarJustificacion=enviarJustificacion; window.verEvidencia=verEvidencia; window.flipCam=flipCam; window.iniciarModoPrueba=iniciarModoPrueba; window.switchScanTab=switchScanTab; window.cerrarModalJustif=cerrarModalJustif; window.cerrarModalEvidencia=cerrarModalEvidencia; window.cerrarModalBoleta=cerrarModalBoleta;
+if(document.getElementById('photoInput')) document.getElementById('photoInput').addEventListener('change', procesarFotoQR);
+if(document.getElementById('evidenciaInput')) document.getElementById('evidenciaInput').addEventListener('change', function(e){ previsualizarEvidencia(e.target); });
+</script>
+</body>
+</html>
