@@ -123,36 +123,34 @@ function escapeHtml(str) {
 
 // ══ GENERADOR QR — qrcode.js (librería estándar confiable) ══
 </script>
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" onload="window._QRCodeLib = window.QRCode;"></script>
 <script>
-// Adaptador QRCode — usa qrcode.js (cargado justo antes)
-const QRCode = {
-  _lib: function() { return window.QRCode._lib || window.QRCode; },
-  toCanvas: function(canvas, text, opts, cb) {
-    if (typeof opts === 'function') { cb = opts; opts = {}; }
-    opts = opts || {};
-    const lib = window._QRCodeLib;
-    if (!lib) { if (cb) cb(new Error('QR lib no cargada')); return; }
-    lib.toCanvas(canvas, text, {
-      width: opts.width || 200,
-      margin: opts.margin != null ? opts.margin : 2,
-      errorCorrectionLevel: opts.errorCorrectionLevel || 'M',
-      color: opts.color || { dark: '#000000', light: '#ffffff' }
-    }).then(() => { if (cb) cb(null); }).catch(e => { if (cb) cb(e); });
-  },
-  toDataURL: function(text, opts, cb) {
-    if (typeof opts === 'function') { cb = opts; opts = {}; }
-    opts = opts || {};
-    const lib = window._QRCodeLib;
-    if (!lib) { if (cb) cb(new Error('QR lib no cargada')); return; }
-    lib.toDataURL(text, {
-      width: opts.width || 200,
-      margin: opts.margin != null ? opts.margin : 2,
-      errorCorrectionLevel: opts.errorCorrectionLevel || 'M',
-      color: opts.color || { dark: '#000000', light: '#ffffff' }
-    }).then(url => { if (cb) cb(null, url); }).catch(e => { if (cb) cb(e); });
-  }
-};
+// Renombrar QRCode de la librería ANTES de que el adaptador lo sobreescriba
+window.__qrlib_load = document.createElement('script');
+window.__qrlib_load.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+window.__qrlib_load.onload = function(){ window._QRLIB = window.QRCode; };
+document.head.appendChild(window.__qrlib_load);
+</script>
+<script>
+// Adaptador QRCode
+const QRCode = (function(){
+  function getLib(){ return window._QRLIB || null; }
+  return {
+    toCanvas: function(canvas, text, opts, cb) {
+      if (typeof opts==='function'){cb=opts;opts={};}
+      opts=opts||{};
+      const lib=getLib();
+      if(!lib){if(cb)cb(new Error('QR lib no cargada'));return;}
+      lib.toCanvas(canvas,text,{width:opts.width||200,margin:opts.margin!=null?opts.margin:2,errorCorrectionLevel:opts.errorCorrectionLevel||'M',color:opts.color||{dark:'#000000',light:'#ffffff'}}).then(()=>{if(cb)cb(null);}).catch(e=>{if(cb)cb(e);});
+    },
+    toDataURL: function(text, opts, cb) {
+      if (typeof opts==='function'){cb=opts;opts={};}
+      opts=opts||{};
+      const lib=getLib();
+      if(!lib){if(cb)cb(new Error('QR lib no cargada'));return;}
+      lib.toDataURL(text,{width:opts.width||200,margin:opts.margin!=null?opts.margin:2,errorCorrectionLevel:opts.errorCorrectionLevel||'M',color:opts.color||{dark:'#000000',light:'#ffffff'}}).then(url=>{if(cb)cb(null,url);}).catch(e=>{if(cb)cb(e);});
+    }
+  };
+})();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
