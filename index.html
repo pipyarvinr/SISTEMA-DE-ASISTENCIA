@@ -1109,7 +1109,8 @@ function entrarApp() {
   }
   const hints = { admin:'<strong>👑 Administrador</strong>Gestión completa del sistema.', auxiliar:'<strong>🛡️ Auxiliar</strong>Registra asistencia y justificaciones.', tutor:'<strong>📖 Tutor</strong>Revisa tu aula y aprueba justificaciones.', padre:'<strong>👪 Apoderado</strong>Consulta la asistencia de tu hijo.' };
   document.getElementById('userHint').innerHTML = hints[sesion.rol] || '';
-  actualizarFecha(); actualizarStats(); renderAlertasBadge();
+  actualizarFecha();
+  if (sesion.rol !== 'padre') { actualizarStats(); renderAlertasBadge(); }
   if (sesion.rol === 'admin') irPanel('admin');
   else if (sesion.rol === 'padre') irPanel('padre');
   else irPanel('asistencia');
@@ -1747,6 +1748,7 @@ async function renderAlertas() {
 }
 
 async function renderAlertasBadge() {
+  if (sesion?.rol === 'padre') return;
   const justifs=await fsGetAll('justificaciones');
   const pendientes=justifs.filter(j=>j.estado==='pendiente'||j.estado==='alerta').length;
   const badge=document.getElementById('navAlertaBadge');
@@ -1756,6 +1758,7 @@ async function renderAlertasBadge() {
 }
 
 async function actualizarStats() {
+  if (sesion?.rol === 'padre') return;
   try {
     const todos=await fsGetAll('estudiantes');
     const fecha=getFecha();
