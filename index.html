@@ -8,12 +8,12 @@
 <!-- ══ PWA META TAGS ══ -->
 <meta name="application-name" content="AsistenciaQR">
 <meta name="description" content="Sistema de control de asistencia IE N.° 0148">
-<meta name="theme-color" content="#c0392b">
+<meta name="theme-color" content="#e8000d">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AsistenciaQR">
-<meta name="msapplication-TileColor" content="#c0392b">
+<meta name="msapplication-TileColor" content="#e8000d">
 <meta name="msapplication-tap-highlight" content="no">
 
 <!-- ══ PWA ICONS (SVG inline vía data URI) ══ -->
@@ -30,18 +30,18 @@
     start_url: "./",
     display: "standalone",
     orientation: "portrait-primary",
-    background_color: "#922b21",
-    theme_color: "#c0392b",
+    background_color: "#b00008",
+    theme_color: "#e8000d",
     lang: "es",
     icons: [
       {
-        src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='38' fill='%23c0392b'/><text y='.85em' font-size='140' x='20'>📚</text></svg>",
+        src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='38' fill='%23e8000d'/><text y='.85em' font-size='140' x='20'>📚</text></svg>",
         sizes: "192x192",
         type: "image/svg+xml",
         purpose: "any maskable"
       },
       {
-        src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%23c0392b'/><text y='.85em' font-size='380' x='56'>📚</text></svg>",
+        src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%23e8000d'/><text y='.85em' font-size='380' x='56'>📚</text></svg>",
         sizes: "512x512",
         type: "image/svg+xml",
         purpose: "any maskable"
@@ -185,8 +185,8 @@ if (window._iniciarApp) window._iniciarApp(window._fb);
 
 <style>
 :root {
-  --verde:#c0392b; --verde-oscuro:#922b21; --verde-claro:#e74c3c;
-  --naranja:#e67e22; --rojo:#c0392b; --azul:#2980b9; --morado:#8e44ad;
+  --verde:#e8000d; --verde-oscuro:#b00008; --verde-claro:#ff2222;
+  --naranja:#e67e22; --rojo:#e8000d; --azul:#2980b9; --morado:#8e44ad;
   --gris-bg:#fdf5f5; --blanco:#fff; --texto:#2c1010; --texto-suave:#7a4f4f;
   --borde:#f0d0d0;
   --shadow-sm:0 1px 4px rgba(0,0,0,.08);
@@ -198,13 +198,13 @@ if (window._iniciarApp) window._iniciarApp(window._fb);
 body{font-family:'DM Sans',sans-serif;background:var(--gris-bg);min-height:100vh;color:var(--texto);}
 
 /* ── SPLASH ── */
-#splashScreen{position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#7b241c,#a93226,#c0392b);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+#splashScreen{position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#cc0000,#cc0011,#e8000d);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
 .splash-icon{font-size:56px;animation:pulse 1.5s infinite;}
 .splash-txt{color:white;font-size:14px;opacity:.7;}
 @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
 
 /* ── LOGIN ── */
-#loginScreen{position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#7b241c,#a93226,#c0392b);display:none;align-items:center;justify-content:center;padding:20px;}
+#loginScreen{position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#cc0000,#cc0011,#e8000d);display:none;align-items:center;justify-content:center;padding:20px;}
 .login-card{background:white;border-radius:20px;padding:36px;width:100%;max-width:400px;box-shadow:0 24px 80px rgba(0,0,0,.35);}
 .login-logo{text-align:center;margin-bottom:24px;}
 .login-logo-icon{width:60px;height:60px;background:var(--verde);border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-size:28px;margin-bottom:10px;box-shadow:0 8px 24px rgba(192,57,43,.4);}
@@ -214,14 +214,14 @@ body{font-family:'DM Sans',sans-serif;background:var(--gris-bg);min-height:100vh
 .role-pill{padding:10px 6px;border:2px solid var(--borde);border-radius:10px;background:transparent;cursor:pointer;text-align:center;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;color:var(--texto-suave);transition:all .2s;}
 .role-pill .rp-icon{display:block;font-size:22px;margin-bottom:4px;}
 .role-pill:hover{border-color:var(--verde);color:var(--verde);}
-.role-pill.sel{border-color:var(--verde);background:#fdf0ef;color:var(--verde);}
+.role-pill.sel{border-color:var(--verde);background:#fff0f0;color:var(--verde);}
 .lin{width:100%;padding:12px 14px;border:1.5px solid var(--borde);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;color:var(--texto);outline:none;margin-bottom:10px;transition:border-color .2s;}
 .lin:focus{border-color:var(--verde);}
 .login-btn{width:100%;padding:13px;background:var(--verde);color:white;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;font-weight:700;cursor:pointer;transition:background .2s;}
 .login-btn:hover{background:var(--verde-oscuro);}
 .login-btn:disabled{background:#aaa;cursor:not-allowed;}
-.login-err{background:#fdf2f0;border:1px solid var(--rojo);border-radius:8px;padding:10px 14px;font-size:13px;color:#922b21;margin-bottom:10px;display:none;}
-.login-hint{margin-top:14px;padding:11px;background:#fdf0ef;border-radius:8px;font-size:11px;color:#7b241c;line-height:1.6;}
+.login-err{background:#ffe8e8;border:1px solid var(--rojo);border-radius:8px;padding:10px 14px;font-size:13px;color:#b00008;margin-bottom:10px;display:none;}
+.login-hint{margin-top:14px;padding:11px;background:#fff0f0;border-radius:8px;font-size:11px;color:#cc0000;line-height:1.6;}
 
 /* ── LAYOUT ── */
 .layout{display:flex;min-height:100vh;}
@@ -247,10 +247,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--gris-bg);min-height:100vh
 .topbar-date{font-family:'Space Mono',monospace;font-size:11px;color:var(--texto-suave);background:var(--gris-bg);padding:5px 11px;border-radius:20px;}
 .session-badge{background:var(--gris-bg);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;}
 .btn-logout{padding:6px 12px;border:1.5px solid var(--borde);border-radius:8px;background:transparent;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:700;color:var(--rojo);cursor:pointer;transition:all .2s;}
-.btn-logout:hover{background:#fdf2f0;border-color:var(--rojo);}
+.btn-logout:hover{background:#ffe8e8;border-color:var(--rojo);}
 
 /* ── TIMER ── */
-.timer-banner{background:linear-gradient(135deg,#c0392b,#922b21);padding:18px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
+.timer-banner{background:linear-gradient(135deg,#e8000d,#b00008);padding:18px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;}
 .timer-time{font-family:'Space Mono',monospace;font-size:2.6em;font-weight:700;color:white;letter-spacing:4px;min-width:110px;}
 .timer-info{color:rgba(255,255,255,.7);font-size:12px;}
 .timer-status-txt{color:white;font-weight:600;font-size:14px;margin-bottom:2px;}
@@ -284,10 +284,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--gris-bg);min-height:100vh
 .btn:active{transform:scale(.97);}
 .btn-primary{background:var(--verde);color:white;}
 .btn-primary:hover{background:var(--verde-oscuro);}
-.btn-success{background:#c0392b;color:white;}
-.btn-success:hover{background:#a93226;}
+.btn-success{background:#e8000d;color:white;}
+.btn-success:hover{background:#cc0011;}
 .btn-danger{background:var(--rojo);color:white;}
-.btn-danger:hover{background:#c0392b;}
+.btn-danger:hover{background:#e8000d;}
 .btn-orange{background:var(--naranja);color:white;}
 .btn-azul{background:var(--azul);color:white;}
 .btn-azul:hover{background:#2471a3;}
@@ -311,8 +311,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--gris-bg);min-height:100vh
 .students-grid::-webkit-scrollbar-thumb{background:var(--borde);border-radius:4px;}
 .student-card{background:var(--gris-bg);border-radius:var(--radius);padding:14px;text-align:center;border:2px solid transparent;transition:all .2s;}
 .student-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md);}
-.student-card.presente{background:#fdf0ef;border-color:#c0392b;}
-.student-card.ausente{background:#fdf2f0;border-color:var(--rojo);}
+.student-card.presente{background:#fff0f0;border-color:#e8000d;}
+.student-card.ausente{background:#ffe8e8;border-color:var(--rojo);}
 .student-card.justificado{background:#eaf4fb;border-color:var(--azul);}
 .student-name{font-size:12px;font-weight:700;color:var(--texto);margin-bottom:2px;}
 .student-grade{font-size:10px;color:var(--naranja);font-weight:700;margin-bottom:7px;}
@@ -320,12 +320,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--gris-bg);min-height:100vh
 
 /* ── BADGES ── */
 .badge{display:inline-block;padding:3px 9px;border-radius:99px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:5px;}
-.badge-green{background:#c0392b;color:white;}
+.badge-green{background:#e8000d;color:white;}
 .badge-red{background:var(--rojo);color:white;}
 .badge-amber{background:#f39c12;color:white;}
 .badge-blue{background:var(--azul);color:white;}
 .badge-morado{background:var(--morado);color:white;}
-.badge-alerta{background:#c0392b;color:white;animation:blink .8s infinite;}
+.badge-alerta{background:#e8000d;color:white;animation:blink .8s infinite;}
 
 /* ── TABLE ── */
 .table-wrap{overflow-x:auto;}
@@ -333,10 +333,10 @@ table{width:100%;border-collapse:collapse;font-size:12px;}
 th{background:var(--gris-bg);font-weight:700;color:var(--texto-suave);text-transform:uppercase;font-size:10px;letter-spacing:.5px;padding:9px 11px;text-align:left;}
 td{padding:9px 11px;border-bottom:1px solid var(--borde);color:var(--texto);}
 tr:last-child td{border-bottom:none;}
-tr.row-presente{background:#fdf0ef;}
-tr.row-ausente{background:#fdf2f0;}
+tr.row-presente{background:#fff0f0;}
+tr.row-ausente{background:#ffe8e8;}
 tr.row-justificado{background:#eaf4fb;}
-tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
+tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
 
 /* ── FILTERS ── */
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
@@ -353,21 +353,21 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
 /* ── NOTIFICATIONS ── */
 .notif-stack{position:fixed;bottom:22px;right:22px;display:flex;flex-direction:column;gap:8px;z-index:2000;max-width:340px;}
 .notif{padding:12px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;box-shadow:var(--shadow-md);animation:slideRight .3s ease;display:flex;align-items:center;gap:8px;}
-.notif-success{background:#fdf0ef;border-left:3px solid #c0392b;color:#7b241c;}
-.notif-error{background:#fdf2f0;border-left:3px solid var(--rojo);color:#922b21;}
+.notif-success{background:#fff0f0;border-left:3px solid #e8000d;color:#cc0000;}
+.notif-error{background:#ffe8e8;border-left:3px solid var(--rojo);color:#b00008;}
 .notif-warning{background:#fef9ec;border-left:3px solid #f39c12;color:#784212;}
 .notif-info{background:#eaf4fb;border-left:3px solid var(--azul);color:#1a5276;}
 @keyframes slideRight{from{transform:translateX(100%);opacity:0}to{transform:none;opacity:1}}
 
 /* ── ALERTA URGENTE ── */
-.alerta-banner{background:linear-gradient(135deg,#c0392b,#e74c3c);color:white;padding:14px 20px;border-radius:12px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;animation:blink .8s 3;}
+.alerta-banner{background:linear-gradient(135deg,#e8000d,#ff2222);color:white;padding:14px 20px;border-radius:12px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;animation:blink .8s 3;}
 .alerta-banner-txt{font-size:14px;font-weight:700;}
 .alerta-banner-sub{font-size:12px;opacity:.85;margin-top:3px;}
 
 /* ── INFO BOX ── */
-.info-box{background:#fdf0ef;border:1px solid #f1948a;border-radius:var(--radius-sm);padding:13px 15px;font-size:13px;color:#7b241c;margin-bottom:12px;line-height:1.6;}
+.info-box{background:#fff0f0;border:1px solid #f1948a;border-radius:var(--radius-sm);padding:13px 15px;font-size:13px;color:#cc0000;margin-bottom:12px;line-height:1.6;}
 .info-box.warn{background:#fef9ec;border-color:#f39c12;color:#784212;}
-.info-box.alert{background:#fdf2f0;border-color:var(--rojo);color:#922b21;}
+.info-box.alert{background:#ffe8e8;border-color:var(--rojo);color:#b00008;}
 .info-box strong{display:block;margin-bottom:3px;}
 
 /* ── JUSTIFICACION CARD ── */
@@ -375,8 +375,8 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
 .justif-card:hover{box-shadow:var(--shadow-md);}
 .justif-card.alerta{border-color:var(--rojo);background:#fff8f8;}
 .justif-card.pendiente{border-color:#f39c12;}
-.justif-card.aprobado{border-color:#c0392b;background:#f0faf4;}
-.justif-card.rechazado{border-color:var(--rojo);background:#fdf2f0;}
+.justif-card.aprobado{border-color:#e8000d;background:#f0faf4;}
+.justif-card.rechazado{border-color:var(--rojo);background:#ffe8e8;}
 .justif-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;}
 .justif-nombre{font-weight:700;font-size:14px;}
 .justif-sub{font-size:11px;color:var(--texto-suave);margin-top:2px;}
@@ -387,8 +387,8 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
 
 /* ── PADRE PANEL ── */
 .hijo-card{background:var(--gris-bg);border-radius:12px;padding:14px 16px;margin-bottom:12px;border:1.5px solid var(--borde);}
-.hijo-card.presente{background:#fdf0ef;border-color:#c0392b;}
-.hijo-card.ausente{background:#fdf2f0;border-color:var(--rojo);}
+.hijo-card.presente{background:#fff0f0;border-color:#e8000d;}
+.hijo-card.ausente{background:#ffe8e8;border-color:var(--rojo);}
 .hijo-nombre{font-weight:700;font-size:15px;}
 .hijo-grado{font-size:12px;color:var(--texto-suave);margin-top:2px;}
 
@@ -397,8 +397,8 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
 .motivo-btn{padding:12px 8px;border:2px solid var(--borde);border-radius:10px;background:transparent;cursor:pointer;text-align:center;font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;color:var(--texto-suave);transition:all .2s;}
 .motivo-btn .m-icon{display:block;font-size:22px;margin-bottom:4px;}
 .motivo-btn:hover{border-color:var(--verde);color:var(--verde);}
-.motivo-btn.sel{border-color:var(--verde);background:#fdf0ef;color:var(--verde);}
-.motivo-btn.sel.alerta-sel{border-color:var(--rojo);background:#fdf2f0;color:var(--rojo);}
+.motivo-btn.sel{border-color:var(--verde);background:#fff0f0;color:var(--verde);}
+.motivo-btn.sel.alerta-sel{border-color:var(--rojo);background:#ffe8e8;color:var(--rojo);}
 
 /* ── UPLOAD ZONE ── */
 .upload-zone{border:2px dashed var(--borde);border-radius:12px;padding:22px;text-align:center;cursor:pointer;transition:all .2s;background:var(--gris-bg);margin:10px 0;display:block;}
@@ -419,9 +419,9 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
 .chart-wrap{position:relative;height:240px;margin-top:10px;}
 
 /* ── FIREBASE STATUS ── */
-.fb-status{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:3px 9px;border-radius:99px;background:#fdf0ef;color:#7b241c;}
-.fb-status.offline{background:#fdf2f0;color:#922b21;}
-.fb-dot{width:6px;height:6px;border-radius:50%;background:#c0392b;}
+.fb-status{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:700;padding:3px 9px;border-radius:99px;background:#fff0f0;color:#cc0000;}
+.fb-status.offline{background:#ffe8e8;color:#b00008;}
+.fb-dot{width:6px;height:6px;border-radius:50%;background:#e8000d;}
 .fb-status.offline .fb-dot{background:var(--rojo);}
 
 /* ── RESPONSIVE ── */
@@ -547,16 +547,16 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
       <!-- ══ PANEL ADMIN ══ -->
       <div id="panel_admin" class="hide">
         <!-- FIX-SEC-10: Aviso de configuración pendiente para el administrador -->
-        <div id="avisoSeguridad" class="info-box alert" style="margin-bottom:16px;background:#fdf2f0;border:2px solid #c0392b;border-radius:10px;padding:14px 18px;">
-          <strong style="color:#922b21;">🔐 Configuración de seguridad requerida</strong><br>
+        <div id="avisoSeguridad" class="info-box alert" style="margin-bottom:16px;background:#ffe8e8;border:2px solid #e8000d;border-radius:10px;padding:14px 18px;">
+          <strong style="color:#b00008;">🔐 Configuración de seguridad requerida</strong><br>
           <span style="font-size:12px;color:#7a4f4f;">
             Para proteger los datos del sistema, realiza estas acciones en
-            <a href="https://console.firebase.google.com" target="_blank" style="color:#c0392b;">Firebase Console</a>:
+            <a href="https://console.firebase.google.com" target="_blank" style="color:#e8000d;">Firebase Console</a>:
             <br>① Configura las <strong>Firestore Security Rules</strong> (ver comentario en el código fuente).
             <br>② Crea el índice <strong>estudiantes → dniPadre</strong> en Firestore → Indexes.
             <br>③ Activa el plan <strong>Blaze</strong> si tienes más de 800 estudiantes activos.
           </span>
-          <button onclick="document.getElementById('avisoSeguridad').style.display='none'" style="float:right;background:none;border:none;font-size:16px;cursor:pointer;color:#922b21;margin-top:-28px;">✕</button>
+          <button onclick="document.getElementById('avisoSeguridad').style.display='none'" style="float:right;background:none;border:none;font-size:16px;cursor:pointer;color:#b00008;margin-top:-28px;">✕</button>
         </div>
         <div class="stats-row" id="statsRow">
           <div class="stat-box"><div class="stat-num" id="statTotal">0</div><div class="stat-lbl">Estudiantes</div></div>
@@ -593,7 +593,7 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
         <div class="card">
           <div class="card-header">
             <span class="card-title">👨‍🎓 Estudiantes Registrados</span>
-            <button class="btn btn-sm" style="background:#c0392b;color:white;" onclick="imprimirQR()">🖨 Imprimir QR</button>
+            <button class="btn btn-sm" style="background:#e8000d;color:white;" onclick="imprimirQR()">🖨 Imprimir QR</button>
           </div>
           <div class="filters">
             <select id="fGradoAdmin" onchange="renderEstudiantes()"><option value="">Todos los grados</option><option value="1ro">1ro</option><option value="2do">2do</option><option value="3ro">3ro</option><option value="4to">4to</option><option value="5to">5to</option></select>
@@ -747,7 +747,7 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
       <div style="display:flex;gap:8px;margin-top:4px;">
         <button class="btn btn-ghost btn-sm" style="flex:1;justify-content:center;" onclick="flipCam()">🔄 Girar cámara</button>
       </div>
-      <div id="camErrorBox" style="display:none;margin-top:10px;background:#fdf2f0;border:1px solid var(--rojo);border-radius:10px;padding:13px;font-size:12px;color:#922b21;line-height:1.7;">
+      <div id="camErrorBox" style="display:none;margin-top:10px;background:#ffe8e8;border:1px solid var(--rojo);border-radius:10px;padding:13px;font-size:12px;color:#b00008;line-height:1.7;">
         <strong style="display:block;margin-bottom:5px;">🔒 No se pudo acceder a la cámara</strong>
         1️⃣ Usa Chrome o Edge<br>2️⃣ Haz clic en 🔒 → Permisos → activar Cámara<br>3️⃣ O usa la pestaña <strong>Foto</strong> o <strong>Manual</strong>
       </div>
@@ -808,7 +808,7 @@ tr.row-alerta{background:#fdf2f0;border-left:3px solid var(--rojo);}
         </div>
       </div>
       <!-- FIX-SEC-2: campo de contraseña admin en el modal, reemplaza el prompt() inseguro -->
-      <div class="form-group" id="adminPassDiv" style="background:#fdf0ef;border:1.5px solid var(--borde);border-radius:10px;padding:12px;">
+      <div class="form-group" id="adminPassDiv" style="background:#fff0f0;border:1.5px solid var(--borde);border-radius:10px;padding:12px;">
         <label style="color:var(--rojo);font-weight:700;">🔐 Tu contraseña de administrador *</label>
         <input type="password" id="uAdminPass" placeholder="Confirma tu contraseña para crear el usuario" autocomplete="current-password" style="width:100%;padding:10px 12px;border:1.5px solid var(--borde);border-radius:8px;font-size:14px;font-family:inherit;outline:none;margin-top:6px;">
         <small style="color:var(--texto-suave);font-size:10px;">Necesaria para que Firebase te mantenga autenticado al crear el nuevo usuario.</small>
@@ -1329,7 +1329,7 @@ async function renderEstudiantes() {
       <div class="qr-container" id="qr_${e.id}" data-qrid="${e.id}"></div>
       <small style="color:var(--texto-suave);font-size:10px;">DNI apod: ${e.dniPadre}</small>
       <div style="margin-top:7px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
-        <button class="btn btn-sm" style="background:#c0392b;color:white;" onclick="descargarQR('${e.id}')">📥 QR</button>
+        <button class="btn btn-sm" style="background:#e8000d;color:white;" onclick="descargarQR('${e.id}')">📥 QR</button>
         <button class="btn btn-sm" style="background:#2471a3;color:white;" onclick="abrirEditarEstudiante('${e.id}')">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="eliminarEstudiante('${e.id}')">🗑</button>
       </div>
@@ -1607,7 +1607,7 @@ async function buscarPorNombre() {
   c.innerHTML=lista.slice(0,8).map(e=>{
     const pres=presSet.has(e.id);
     const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
-    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;margin-bottom:5px;background:${pres?'#fdf0ef':'var(--gris-bg)'};border:1px solid ${pres?'#a9dfbf':'var(--borde)'};">
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;margin-bottom:5px;background:${pres?'#fff0f0':'var(--gris-bg)'};border:1px solid ${pres?'#a9dfbf':'var(--borde)'};">
       <div><div style="font-size:12px;font-weight:700;">${e.nombre}</div><div style="font-size:10px;color:var(--texto-suave);">${e.grado} — Sección ${e.seccion}</div></div>
       ${pres ? '<span class="badge badge-green">✅ Presente</span>' : `<div style="display:flex;gap:4px;"><button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">✅</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌</button></div>`}
     </div>`;
@@ -1620,14 +1620,14 @@ async function buscarPorDNI() {
   if(!/^\d{8}$/.test(dni)){notif('❌ DNI debe tener 8 dígitos','error');return;}
   // FIX-PERF-4c: consulta directa por DNI en lugar de descargar todos los estudiantes
   const hijos=await fsQuery('estudiantes', FB.where('dniPadre','==',dni));
-  if(!hijos.length){c.innerHTML='<div style="font-size:12px;color:var(--rojo);background:#fdf2f0;padding:8px;border-radius:8px;">❌ Sin estudiantes con ese DNI</div>';return;}
+  if(!hijos.length){c.innerHTML='<div style="font-size:12px;color:var(--rojo);background:#ffe8e8;padding:8px;border-radius:8px;">❌ Sin estudiantes con ese DNI</div>';return;}
   const fecha=getFecha();
   const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
   const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
   c.innerHTML=hijos.map(e=>{
     const pres=presSet.has(e.id);
     const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
-    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border-radius:9px;margin-bottom:6px;background:${pres?'#fdf0ef':'var(--gris-bg)'};border:1.5px solid ${pres?'#a9dfbf':'var(--borde)'};">
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border-radius:9px;margin-bottom:6px;background:${pres?'#fff0f0':'var(--gris-bg)'};border:1.5px solid ${pres?'#a9dfbf':'var(--borde)'};">
       <div><div style="font-size:13px;font-weight:700;">${e.nombre}</div><div style="font-size:11px;color:var(--texto-suave);">${e.grado} — Sección ${e.seccion}</div></div>
       ${pres?'<span class="badge badge-green">✅ Presente</span>':`<button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">Registrar</button>`}
     </div>`;
@@ -1684,12 +1684,12 @@ async function renderHijosInfo(hijos) {
     }else if(justifHoy && justifHoy.estado==='pendiente'){
       estadoHtml=`<div style="background:#fef9ec;border:2px solid #f39c12;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.4em;margin-bottom:4px;">⏳</div><div style="font-weight:700;color:#784212;font-size:13px;">Justificación enviada</div><div style="font-size:11px;color:#784212;margin-top:3px;">En espera de aprobación del tutor</div></div>`;
     }else if(justifHoy && justifHoy.estado==='aprobado'){
-      estadoHtml=`<div style="background:#fdf0ef;border:2px solid #c0392b;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.4em;margin-bottom:4px;">✅</div><div style="font-weight:700;color:#922b21;font-size:13px;">Justificación aprobada</div></div>`;
-      botones=`<button class="btn btn-primary" style="margin-top:10px;width:100%;justify-content:center;background:#c0392b;" onclick="descargarBoletaPadre('${justifHoy.id}')">📄 Ver boleta</button>`;
+      estadoHtml=`<div style="background:#fff0f0;border:2px solid #e8000d;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.4em;margin-bottom:4px;">✅</div><div style="font-weight:700;color:#b00008;font-size:13px;">Justificación aprobada</div></div>`;
+      botones=`<button class="btn btn-primary" style="margin-top:10px;width:100%;justify-content:center;background:#e8000d;" onclick="descargarBoletaPadre('${justifHoy.id}')">📄 Ver boleta</button>`;
     }else if(justifHoy && justifHoy.estado==='rechazado'){
-      estadoHtml=`<div style="background:#fdf2f0;border:2px solid var(--rojo);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.4em;margin-bottom:4px;">❌</div><div style="font-weight:700;color:#922b21;font-size:13px;">Justificación rechazada</div><div style="font-size:11px;color:#922b21;margin-top:3px;">Comunícate con el tutor</div></div>`;
+      estadoHtml=`<div style="background:#ffe8e8;border:2px solid var(--rojo);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.4em;margin-bottom:4px;">❌</div><div style="font-weight:700;color:#b00008;font-size:13px;">Justificación rechazada</div><div style="font-size:11px;color:#b00008;margin-top:3px;">Comunícate con el tutor</div></div>`;
     }else if(ausenteReg){
-      estadoHtml=`<div style="background:#fdf2f0;border:2px solid var(--rojo);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.6em;margin-bottom:4px;">🚨</div><div style="font-weight:700;color:var(--rojo);font-size:14px;">AUSENTE HOY</div></div>`;
+      estadoHtml=`<div style="background:#ffe8e8;border:2px solid var(--rojo);border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.6em;margin-bottom:4px;">🚨</div><div style="font-weight:700;color:var(--rojo);font-size:14px;">AUSENTE HOY</div></div>`;
       botones=`<button class="btn btn-orange" style="margin-top:10px;width:100%;justify-content:center;" onclick="abrirJustif('${h.id}')">📝 Justificar</button>`;
     }else{
       estadoHtml='<span class="badge" style="font-size:12px;padding:5px 14px;background:#f0f0f0;color:#888;">⏳ Sin registro aún</span>';
@@ -1825,7 +1825,7 @@ async function cambiarEstadoJustif(id, estado) {
 
 function generarBoletaJustificacion(j,fmtFecha,fmtHora,ahora,vence) {
   const motLabels={enfermedad:'🤒 Enfermedad',cita:'🏥 Cita médica',familiar:'👨‍👩‍👧 Motivo familiar',otro:'📝 Otro motivo',alerta:'🚨 Alerta'};
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Boleta de Justificación</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#f5f5f5 0%,#ede8e8 100%);display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:24px;}.boleta{background:white;width:400px;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(146,43,33,.18);}.header{background:linear-gradient(135deg,#7b1f18 0%,#c0392b 100%);color:white;padding:20px 22px 16px;text-align:center;position:relative;}.logo-circle{width:56px;height:56px;background:rgba(255,255,255,.15);border:2.5px solid rgba(255,255,255,.4);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:26px;}.school-name{font-size:11px;font-weight:700;line-height:1.5;letter-spacing:.3px;opacity:.95;}.school-sub{font-size:9px;opacity:.65;margin-top:3px;letter-spacing:.5px;text-transform:uppercase;}.sello{background:linear-gradient(90deg,#1a7a3a,#27ae60);color:white;text-align:center;padding:11px;font-size:13px;font-weight:800;letter-spacing:.5px;display:flex;align-items:center;justify-content:center;gap:7px;}.body{padding:20px 22px;}.section-title{font-size:8px;font-weight:800;color:#922b21;text-transform:uppercase;letter-spacing:1px;border-bottom:1.5px solid #f5e6e5;padding-bottom:5px;margin-bottom:12px;margin-top:16px;}.section-title:first-child{margin-top:0;}.field{margin-bottom:10px;display:flex;flex-direction:column;}.field label{font-size:8px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;}.field value{font-size:13px;font-weight:600;color:#1a1a1a;}.field.row{flex-direction:row;gap:16px;}.field.row>div{flex:1;}.vence{background:linear-gradient(135deg,#fdf2f0,#fce8e6);border:2px solid #c0392b;border-radius:10px;padding:14px;text-align:center;margin:16px 0;}.vence .v-lbl{font-size:8px;color:#922b21;font-weight:800;text-transform:uppercase;letter-spacing:.8px;}.vence .v-val{font-size:16px;font-weight:900;color:#922b21;margin-top:3px;}.horario{background:#fef9ec;border:1.5px solid #f39c12;border-radius:10px;padding:12px;text-align:center;margin-bottom:16px;}.horario .h-lbl{font-size:8px;font-weight:800;color:#784212;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;}.horario .h-dias{font-size:13px;font-weight:700;color:#784212;}.horario .h-hora{font-size:11px;color:#a04000;margin-top:2px;}.qr-area{border:1.5px dashed #ddd;border-radius:8px;padding:10px;text-align:center;margin-bottom:4px;color:#bbb;font-size:10px;}.footer{background:linear-gradient(135deg,#7b1f18,#922b21);color:rgba(255,255,255,.55);font-size:8px;text-align:center;padding:10px;letter-spacing:.3px;}</style></head><body><div class="boleta"><div class="header"><div class="logo-circle">🏫</div><div class="school-name">IE N.° 0148 — MAESTRO VÍCTOR RAÚL HAYA DE LA TORRE</div><div class="school-sub">Sistema de Control de Asistencia Estudiantil</div></div><div class="sello"><span>✅</span><span>JUSTIFICACIÓN APROBADA — VÁLIDA 48 HORAS</span></div><div class="body"><div class="section-title">📋 Datos del estudiante</div><div class="field"><label>Nombre completo</label><value>${j.nombre}</value></div><div class="field row"><div><div class="field"><label>Grado</label><value>${j.grado}</value></div></div><div><div class="field"><label>Sección</label><value>${j.seccion}</value></div></div></div><div class="section-title">📄 Detalle de la justificación</div><div class="field"><label>Fecha de inasistencia</label><value>${j.fecha}</value></div><div class="field"><label>Motivo</label><value>${motLabels[j.motivo]||j.motivo}</value></div><div class="field"><label>Aprobado por</label><value>${j.validadoPor||'Tutor del aula'}</value></div><div class="vence"><div class="v-lbl">⏰ Válido hasta</div><div class="v-val">${fmtFecha(vence)} — ${fmtHora(vence)}</div></div><div class="horario"><div class="h-lbl">📅 Horario de atención</div><div class="h-dias">Lunes, Miércoles y Viernes</div><div class="h-hora">9:00 a.m. — 11:00 a.m.</div></div></div><div class="footer">Sistema AsistenciaQR • Generado el ${fmtFecha(ahora)} a las ${fmtHora(ahora)}</div></div></body></html>`;
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Boleta de Justificación</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',Arial,sans-serif;background:linear-gradient(135deg,#f5f5f5 0%,#ede8e8 100%);display:flex;justify-content:center;align-items:flex-start;min-height:100vh;padding:24px;}.boleta{background:white;width:400px;border-radius:16px;overflow:hidden;box-shadow:0 8px 32px rgba(146,43,33,.18);}.header{background:linear-gradient(135deg,#7b1f18 0%,#e8000d 100%);color:white;padding:20px 22px 16px;text-align:center;position:relative;}.logo-circle{width:56px;height:56px;background:rgba(255,255,255,.15);border:2.5px solid rgba(255,255,255,.4);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 10px;font-size:26px;}.school-name{font-size:11px;font-weight:700;line-height:1.5;letter-spacing:.3px;opacity:.95;}.school-sub{font-size:9px;opacity:.65;margin-top:3px;letter-spacing:.5px;text-transform:uppercase;}.sello{background:linear-gradient(90deg,#1a7a3a,#27ae60);color:white;text-align:center;padding:11px;font-size:13px;font-weight:800;letter-spacing:.5px;display:flex;align-items:center;justify-content:center;gap:7px;}.body{padding:20px 22px;}.section-title{font-size:8px;font-weight:800;color:#b00008;text-transform:uppercase;letter-spacing:1px;border-bottom:1.5px solid #ffd0d0;padding-bottom:5px;margin-bottom:12px;margin-top:16px;}.section-title:first-child{margin-top:0;}.field{margin-bottom:10px;display:flex;flex-direction:column;}.field label{font-size:8px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;}.field value{font-size:13px;font-weight:600;color:#1a1a1a;}.field.row{flex-direction:row;gap:16px;}.field.row>div{flex:1;}.vence{background:linear-gradient(135deg,#ffe8e8,#ffd5d5);border:2px solid #e8000d;border-radius:10px;padding:14px;text-align:center;margin:16px 0;}.vence .v-lbl{font-size:8px;color:#b00008;font-weight:800;text-transform:uppercase;letter-spacing:.8px;}.vence .v-val{font-size:16px;font-weight:900;color:#b00008;margin-top:3px;}.horario{background:#fef9ec;border:1.5px solid #f39c12;border-radius:10px;padding:12px;text-align:center;margin-bottom:16px;}.horario .h-lbl{font-size:8px;font-weight:800;color:#784212;text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;}.horario .h-dias{font-size:13px;font-weight:700;color:#784212;}.horario .h-hora{font-size:11px;color:#a04000;margin-top:2px;}.qr-area{border:1.5px dashed #ddd;border-radius:8px;padding:10px;text-align:center;margin-bottom:4px;color:#bbb;font-size:10px;}.footer{background:linear-gradient(135deg,#7b1f18,#b00008);color:rgba(255,255,255,.55);font-size:8px;text-align:center;padding:10px;letter-spacing:.3px;}</style></head><body><div class="boleta"><div class="header"><div class="logo-circle">🏫</div><div class="school-name">IE N.° 0148 — MAESTRO VÍCTOR RAÚL HAYA DE LA TORRE</div><div class="school-sub">Sistema de Control de Asistencia Estudiantil</div></div><div class="sello"><span>✅</span><span>JUSTIFICACIÓN APROBADA — VÁLIDA 48 HORAS</span></div><div class="body"><div class="section-title">📋 Datos del estudiante</div><div class="field"><label>Nombre completo</label><value>${j.nombre}</value></div><div class="field row"><div><div class="field"><label>Grado</label><value>${j.grado}</value></div></div><div><div class="field"><label>Sección</label><value>${j.seccion}</value></div></div></div><div class="section-title">📄 Detalle de la justificación</div><div class="field"><label>Fecha de inasistencia</label><value>${j.fecha}</value></div><div class="field"><label>Motivo</label><value>${motLabels[j.motivo]||j.motivo}</value></div><div class="field"><label>Aprobado por</label><value>${j.validadoPor||'Tutor del aula'}</value></div><div class="vence"><div class="v-lbl">⏰ Válido hasta</div><div class="v-val">${fmtFecha(vence)} — ${fmtHora(vence)}</div></div><div class="horario"><div class="h-lbl">📅 Horario de atención</div><div class="h-dias">Lunes, Miércoles y Viernes</div><div class="h-hora">9:00 a.m. — 11:00 a.m.</div></div></div><div class="footer">Sistema AsistenciaQR • Generado el ${fmtFecha(ahora)} a las ${fmtHora(ahora)}</div></div></body></html>`;
   const blob=new Blob([html],{type:'text/html'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
@@ -1958,7 +1958,7 @@ async function exportarExcel() {
     const [ga,sa]=a.split('|'),[gb,sb]=b.split('|');
     return (gradoOrden.indexOf(ga)-gradoOrden.indexOf(gb))||secOrden.indexOf(sa)-secOrden.indexOf(sb);
   });
-  let html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:11px;margin:16px;}h1{font-size:15px;color:#922b21;}h3{font-size:13px;color:#922b21;margin:22px 0 6px;border-bottom:2px solid #c0392b;padding-bottom:4px;}table{width:100%;border-collapse:collapse;margin-bottom:8px;}th{background:#922b21;color:white;padding:6px 8px;font-size:10px;}td{padding:5px 8px;border-bottom:1px solid #eee;font-size:10px;}.pres{color:#1a6b3a;font-weight:700;}.aus{color:#c0392b;font-weight:700;}@media print{body{margin:6px;}}</style></head><body><h1>📚 IE N.° 0148 — Reporte de Asistencia</h1>`;
+  let html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:11px;margin:16px;}h1{font-size:15px;color:#b00008;}h3{font-size:13px;color:#b00008;margin:22px 0 6px;border-bottom:2px solid #e8000d;padding-bottom:4px;}table{width:100%;border-collapse:collapse;margin-bottom:8px;}th{background:#b00008;color:white;padding:6px 8px;font-size:10px;}td{padding:5px 8px;border-bottom:1px solid #eee;font-size:10px;}.pres{color:#1a6b3a;font-weight:700;}.aus{color:#e8000d;font-weight:700;}@media print{body{margin:6px;}}</style></head><body><h1>📚 IE N.° 0148 — Reporte de Asistencia</h1>`;
   for(const key of claves){
     const g=grupos[key];
     const ids=new Set(g.estudiantes.map(e=>e.id));
@@ -1990,7 +1990,7 @@ async function exportarPDF() {
   const fecha=getFecha();
   const asistencias=await fsQuery('asistencia',FB.where('fecha','==',fecha));
   const presSet=new Set(asistencias.map(a=>a.estudianteId));
-  const html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px;}h1{font-size:16px;color:#1a6b3a;}table{width:100%;border-collapse:collapse;margin-top:10px;}th{background:#1a6b3a;color:white;padding:8px;font-size:11px;}td{padding:7px 8px;border-bottom:1px solid #ddd;}.pres{background:#fdf0ef;}.aus{background:#fdf2f0;}</style></head><body><h1>📚 IE N.° 0148 — Control de Asistencia — ${fecha}</h1><table><thead><tr><th>#</th><th>Estudiante</th><th>Grado</th><th>Sección</th><th>Estado</th><th>Firma</th></tr></thead><tbody>${estudiantes.map((e,i)=>`<tr class="${presSet.has(e.id)?'pres':'aus'}"><td>${i+1}</td><td>${e.nombre}</td><td>${e.grado}</td><td>${e.seccion}</td><td>${presSet.has(e.id)?'✅ Presente':'❌ Ausente'}</td><td style="width:120px;border-bottom:1px solid #999;">&nbsp;</td></tr>`).join('')}</tbody></table></body></html>`;
+  const html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px;}h1{font-size:16px;color:#1a6b3a;}table{width:100%;border-collapse:collapse;margin-top:10px;}th{background:#1a6b3a;color:white;padding:8px;font-size:11px;}td{padding:7px 8px;border-bottom:1px solid #ddd;}.pres{background:#fff0f0;}.aus{background:#ffe8e8;}</style></head><body><h1>📚 IE N.° 0148 — Control de Asistencia — ${fecha}</h1><table><thead><tr><th>#</th><th>Estudiante</th><th>Grado</th><th>Sección</th><th>Estado</th><th>Firma</th></tr></thead><tbody>${estudiantes.map((e,i)=>`<tr class="${presSet.has(e.id)?'pres':'aus'}"><td>${i+1}</td><td>${e.nombre}</td><td>${e.grado}</td><td>${e.seccion}</td><td>${presSet.has(e.id)?'✅ Presente':'❌ Ausente'}</td><td style="width:120px;border-bottom:1px solid #999;">&nbsp;</td></tr>`).join('')}</tbody></table></body></html>`;
   // BUG #5 FIX: proteger contra bloqueador de ventanas emergentes
   const w=window.open('','_blank');
   if(!w){notif('❌ Ventana emergente bloqueada. Permite pop-ups en tu navegador para exportar el PDF.','error');return;}
@@ -2179,7 +2179,7 @@ async function procesarFotoQR(input) {
   res.innerHTML='<span style="color:var(--verde)">✅ QR detectado</span>';
   document.getElementById('photoStatus').textContent='';
   const ok=await registrarAsistencia(code.data);
-  if(ok){res.innerHTML='<span style="color:#c0392b">✅ Asistencia registrada</span>';setTimeout(()=>cerrarScanner(),1200);}
+  if(ok){res.innerHTML='<span style="color:#e8000d">✅ Asistencia registrada</span>';setTimeout(()=>cerrarScanner(),1200);}
   else{res.innerHTML='<span style="color:var(--naranja)">⚠️ Ya registrado o no encontrado</span>';}
 }
 
