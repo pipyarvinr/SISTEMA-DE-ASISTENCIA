@@ -1267,6 +1267,7 @@ async function renderEstudiantes() {
       <small style="color:var(--texto-suave);font-size:10px;">DNI apod: ${e.dniPadre}</small>
       <div style="margin-top:7px;display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
         <button class="btn btn-sm" style="background:#c0392b;color:white;" onclick="descargarQR('${e.id}')">📥 QR</button>
+        <button class="btn btn-sm" style="background:#2471a3;color:white;" onclick="abrirEditarEstudiante('${e.id}')">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="eliminarEstudiante('${e.id}')">🗑</button>
       </div>
     </div>`).join('');
@@ -1294,6 +1295,35 @@ async function eliminarEstudiante(id) {
   await fsDelete('estudiantes', id);
   renderEstudiantes(); actualizarStats();
   notif('🗑 Estudiante eliminado','info');
+}
+
+async function abrirEditarEstudiante(id) {
+  const e = _estudiantesCache.find(x=>x.id===id);
+  if (!e) { notif('❌ Estudiante no encontrado','error'); return; }
+  document.getElementById('editEstId').value = id;
+  document.getElementById('editEstNombre').value = e.nombre || '';
+  document.getElementById('editEstGrado').value = e.grado || '1°';
+  document.getElementById('editEstSeccion').value = e.seccion || 'A';
+  document.getElementById('editEstDNI').value = e.dniPadre || '';
+  document.getElementById('editEstTelefono').value = e.telefono || '';
+  document.getElementById('modalEditarEst').classList.add('open');
+}
+
+async function guardarEdicionEstudiante() {
+  const id = document.getElementById('editEstId').value;
+  const nombre = document.getElementById('editEstNombre').value.trim();
+  const grado = document.getElementById('editEstGrado').value;
+  const seccion = document.getElementById('editEstSeccion').value;
+  const dniPadre = document.getElementById('editEstDNI').value.trim();
+  const telefono = document.getElementById('editEstTelefono').value.trim();
+  if (!nombre || !dniPadre) { notif('❌ Nombre y DNI son obligatorios','error'); return; }
+  if (!/^\d{8}$/.test(dniPadre)) { notif('❌ DNI debe tener 8 dígitos','error'); return; }
+  try {
+    await fsUpdate('estudiantes', id, { nombre, grado, seccion, dniPadre, telefono });
+    document.getElementById('modalEditarEst').classList.remove('open');
+    notif('✅ Estudiante actualizado correctamente','success');
+    renderEstudiantes(); actualizarStats();
+  } catch(e) { notif('❌ Error al guardar: '+e.message,'error'); }
 }
 
 async function descargarQR(id) {
@@ -1393,7 +1423,52 @@ async function imprimirQR() {
     const qrSrc = qrMap[e.id] || '';
     return `<div class="tarjeta"><div class="hdr"><div class="colegio">IE N.° 0148<br>MAESTRO V.R. HAYA DE LA TORRE</div><div class="sub">Tarjeta de Asistencia</div></div><div class="qr-wrap"><img src="${qrSrc}" width="130" height="130"></div><div class="sep"></div><div class="id-txt">ID: ${e.id.substring(0,8)}</div><div class="nombre">${e.nombre}</div><div class="grado">${e.grado} Sec. · Sección ${e.seccion}</div><div class="ftr">IE N.° 0148 — Uso interno</div></div>`;
   }).join('');
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;background:white;padding:10px;}.grid{display:flex;flex-wrap:wrap;gap:8px;}.tarjeta{width:200px;border-radius:12px;overflow:hidden;border:1px solid #d4ddd6;background:white;page-break-inside:avoid;}.hdr{background:#0f3d22;color:white;padding:10px;text-align:center;border-bottom:4px solid #2ecc71;}.colegio{font-size:7.5px;font-weight:bold;line-height:1.4;}.sub{font-size:8px;opacity:.7;margin-top:2px;}.qr-wrap{padding:12px;text-align:center;background:#f8f9f8;}.sep{height:1px;background:#e0e6e1;margin:0 12px;}.id-txt{font-size:9px;color:#9aaa9d;text-align:center;padding:6px 0 2px;font-family:monospace;}.nombre{font-size:12px;font-weight:bold;text-align:center;padding:2px 8px;color:#1c2b1e;}.grado{font-size:10px;font-weight:bold;color:#1a6b3a;text-align:center;padding:2px 0 8px;}.ftr{background:#0f3d22;color:rgba(255,255,255,.4);font-size:7px;text-align:center;padding:5px;}@media print{body{padding:0;}}</style></head><body><div class="grid">${rows}</div></body></html>`;
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;background:white;padding:10px;}.grid{display:flex;flex-wrap:wrap;gap:8px;}.tarjeta{width:200px;border-radius:12px;overflow:hidden;border:1px solid #d4ddd6;background:white;page-break-inside:avoid;}.hdr{background:#0f3d22;color:white;padding:10px;text-align:center;border-bottom:4px solid #2ecc71;}.colegio{font-size:7.5px;font-weight:bold;line-height:1.4;}.sub{font-size:8px;opacity:.7;margin-top:2px;}.qr-wrap{padding:12px;text-align:center;background:#f8f9f8;}.sep{height:1px;background:#e0e6e1;margin:0 12px;}.id-txt{font-size:9px;color:#9aaa9d;text-align:center;padding:6px 0 2px;font-family:monospace;}.nombre{font-size:12px;font-weight:bold;text-align:center;padding:2px 8px;color:#1c2b1e;}.grado{font-size:10px;font-weight:bold;color:#1a6b3a;text-align:center;padding:2px 0 8px;}.ftr{background:#0f3d22;color:rgba(255,255,255,.4);font-size:7px;text-align:center;padding:5px;}@media print{body{padding:0;}}</style></head><body><div class="grid">${rows}</div>
+<!-- ══ MODAL EDITAR ESTUDIANTE ══ -->
+<div id="modalEditarEst" class="modal">
+  <div class="modal-box" style="max-width:420px;">
+    <div class="modal-header">
+      <span class="modal-title">✏️ Editar Estudiante</span>
+      <button class="modal-close" onclick="document.getElementById('modalEditarEst').classList.remove('open')">✕</button>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:12px;">
+      <input type="hidden" id="editEstId">
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--texto-suave);display:block;margin-bottom:4px;">NOMBRE COMPLETO</label>
+        <input class="input" id="editEstNombre" type="text" placeholder="Nombre completo">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--texto-suave);display:block;margin-bottom:4px;">GRADO</label>
+          <select class="input" id="editEstGrado">
+            <option value="1°">1°</option><option value="2°">2°</option><option value="3°">3°</option>
+            <option value="4°">4°</option><option value="5°">5°</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;font-weight:600;color:var(--texto-suave);display:block;margin-bottom:4px;">SECCIÓN</label>
+          <select class="input" id="editEstSeccion">
+            <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+            <option value="D">D</option><option value="E">E</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--texto-suave);display:block;margin-bottom:4px;">DNI DEL APODERADO</label>
+        <input class="input" id="editEstDNI" type="text" maxlength="8" placeholder="8 dígitos">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:600;color:var(--texto-suave);display:block;margin-bottom:4px;">TELÉFONO</label>
+        <input class="input" id="editEstTelefono" type="text" placeholder="Opcional">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:6px;">
+        <button class="btn" style="flex:1;justify-content:center;background:var(--gris-claro);" onclick="document.getElementById('modalEditarEst').classList.remove('open')">Cancelar</button>
+        <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="guardarEdicionEstudiante()">💾 Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>`;
   const w=window.open('','_blank');
   if (!w) { notif('❌ Bloqueo de ventana emergente — permite pop-ups','error'); return; }
   w.document.write(html); w.document.close();
