@@ -633,8 +633,9 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
           <div class="card-header">
             <span class="card-title">📋 Estado de Asistencia — Hoy</span>
             <div class="filters" style="margin:0;">
-              <select id="fGradoAux" onchange="renderListaAsistencia()"><option value="">Todos</option><option value="1ro">1ro</option><option value="2do">2do</option><option value="3ro">3ro</option><option value="4to">4to</option><option value="5to">5to</option></select>
-              <select id="fSecAux" onchange="renderListaAsistencia()"><option value="">Todas</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select>
+              <select id="fGradoAux"><option value="">Todos</option><option value="1ro">1ro</option><option value="2do">2do</option><option value="3ro">3ro</option><option value="4to">4to</option><option value="5to">5to</option></select>
+              <select id="fSecAux"><option value="">Todas</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select>
+              <button class="btn btn-primary btn-sm" onclick="renderListaAsistencia()">🔍 Buscar</button>
             </div>
           </div>
           <div id="listaAsistencia" class="students-grid"></div>
@@ -672,7 +673,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
             <select id="rSeccion"><option value="">Todas las secciones</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select>
             <input type="date" id="rFechaInicio" style="padding:7px 10px;border:1.5px solid var(--borde);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;">
             <input type="date" id="rFechaFin" style="padding:7px 10px;border:1.5px solid var(--borde);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:12px;outline:none;">
-            <button class="btn btn-primary btn-sm" onclick="generarReporte()">🔄 Actualizar</button>
+            <button class="btn btn-primary btn-sm" onclick="generarReporte()">🔍 Buscar</button>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">
             <button class="btn btn-success btn-sm" onclick="exportarExcel()">📥 Exportar Excel</button>
@@ -1222,7 +1223,7 @@ function irPanel(panel) {
   if (panel==='admin') { renderEstudiantes(); renderListaUsuarios(); actualizarStats(); }
   if (panel==='asistencia') { renderListaAsistencia(); cargarTablaAsistencia(); renderAlertas(); }
   if (panel==='justificaciones') { renderJustificaciones(); }
-  if (panel==='reportes') { generarReporte(); }
+  if (panel==='reportes') { document.getElementById('tablaReporte').innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--texto-suave);">Selecciona los filtros y presiona 🔍 Buscar</td></tr>'; }
 }
 
 function iniciarSesion() {
@@ -1234,7 +1235,7 @@ function iniciarSesion() {
     tiempoRestante--; actualizarTimer();
     if (tiempoRestante <= 300) document.getElementById('timerStatus').classList.add('blink');
   }, 1000);
-  notif('🟢 Sesión iniciada — 30 minutos activos','success');
+  notif('🟢 Sesión iniciada — 60 minutos activos','success');
   renderListaAsistencia();
 }
 function finalizarSesion() {
