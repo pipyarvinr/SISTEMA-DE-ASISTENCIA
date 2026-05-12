@@ -537,7 +537,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
         <div class="progress-label" id="progressLabel">Sin sesión activa</div>
       </div>
       <div class="timer-actions">
-        <button class="btn btn-success" onclick="iniciarSesion()">▶ Iniciar (30 min)</button>
+        <button class="btn btn-success" onclick="iniciarSesion()">▶ Iniciar (60 min)</button>
         <button class="btn btn-danger" onclick="finalizarYMarcarAusentes()">■ Finalizar y marcar ausentes</button>
       </div>
     </div>
@@ -1227,7 +1227,7 @@ function irPanel(panel) {
 
 function iniciarSesion() {
   if (ventanaActiva) { notif('⚠️ Ya hay una sesión activa','warning'); return; }
-  ventanaActiva = true; tiempoRestante = 1800;
+  ventanaActiva = true; tiempoRestante = 3600;
   actualizarTimer();
   temporizador = setInterval(() => {
     if (tiempoRestante <= 0) { finalizarSesion(); return; }
@@ -1275,7 +1275,7 @@ function actualizarTimer() {
   const m = Math.floor(tiempoRestante/60).toString().padStart(2,'0');
   const s = (tiempoRestante%60).toString().padStart(2,'0');
   document.getElementById('timerDisplay').textContent = m+':'+s;
-  const pct = (tiempoRestante/1800)*100;
+  const pct = (tiempoRestante/3600)*100;
   document.getElementById('progressFill').style.width = pct+'%';
   document.getElementById('progressLabel').textContent = Math.round(pct)+'% tiempo restante';
   document.getElementById('timerStatus').textContent = tiempoRestante<=300 ? '⚠️ Menos de 5 minutos' : '🟢 Sesión activa';
@@ -2202,7 +2202,7 @@ function tickScan() {
     document.getElementById('scannerView').appendChild(flash);
     registrarAsistencia(code.data).then(ok=>{
       if(ok) setTimeout(()=>cerrarScanner(),800);
-      else setTimeout(()=>{escaneando=true;tickScan();},1800);
+      else setTimeout(()=>{escaneando=true;tickScan();},3600);
     });
     return;
   }
