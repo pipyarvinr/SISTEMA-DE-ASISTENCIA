@@ -653,7 +653,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
         <div id="alertasBanner"></div>
         <div class="card">
           <div class="card-header">
-            <span class="card-title">📄 Justificaciones de Inasistencia</span>
+            <span class="card-title">📄 Justificaciones de Inasistencia</span><div style="display:flex;gap:8px;"><button class="btn btn-sm" style="background:#1a7a3a;color:white;" onclick="exportarJustificacionesExcel()">📊 Excel</button><button class="btn btn-sm" style="background:#c0392b;color:white;" onclick="eliminarJustificacionesFiltradas()">🗑 Eliminar filtradas</button></div>
             <div class="filters" style="margin:0;">
               <select id="fJustifEstado" onchange="renderJustificaciones()"><option value="">Todos los estados</option><option value="pendiente">⏳ Pendiente</option><option value="aprobado">✅ Aprobado</option><option value="rechazado">❌ Rechazado</option><option value="alerta">🚨 Alerta</option></select>
               <select id="fJustifGrado" onchange="renderJustificaciones()"><option value="">Todos los grados</option><option value="1ro">1ro</option><option value="2do">2do</option><option value="3ro">3ro</option><option value="4to">4to</option><option value="5to">5to</option></select>
@@ -1148,6 +1148,7 @@ function entrarApp() {
   } else if (sesion.rol === 'tutor' || sesion.rol === 'auxiliar') {
     ['nav_admin','nav_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     ['mn_admin','mn_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    document.getElementById('timerBanner').style.display = '';
   } else if (sesion.rol === 'admin') {
     document.getElementById('nav_padre').style.display = 'none';
     document.getElementById('mn_padre').style.display = 'none';
@@ -1247,10 +1248,16 @@ function finalizarSesion() {
   actualizarStats(); notif('✅ Sesión finalizada','info');
 }
 async function finalizarYMarcarAusentes() {
+  if (!confirm('⚠️ ¿Seguro que deseas finalizar la sesión y marcar como ausentes a todos los estudiantes sin registro? Esta acción no se puede deshacer.')) return;
   finalizarSesion();
   notif('⏳ Marcando ausentes…','info');
   try {
-    const todos = await fsGetAll('estudiantes');
+    let todos = await fsGetAll('estudiantes');
+    // BUG #2 FIX: auxiliar/tutor solo marca ausentes de sus grados y secciones asignadas
+    if (sesion?.rol !== 'admin') {
+      if (sesion?.grados?.length) todos = todos.filter(e=>sesion.grados.includes(e.grado));
+      if (sesion?.secciones?.length) todos = todos.filter(e=>sesion.secciones.includes(e.seccion));
+    }
     const fecha = getFecha();
     const asist = await fsQuery('asistencia', FB.where('fecha','==',fecha));
     const conRegistro = new Set(asist.map(a=>a.estudianteId));
@@ -1491,12 +1498,20 @@ async function imprimirQR() {
   const w=window.open('','_blank');
   if (!w) { notif('❌ Bloqueo de ventana emergente — permite pop-ups','error'); return; }
   w.document.write(html); w.document.close();
-  setTimeout(()=>w.print(),800);
+  setTimeout(()=>{
+    const blob = new Blob([html], {type:'text/html'});
+    const a = w.document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'boleta_justificacion_' + (j?.nombre||'estudiante').replace(/\s+/g,'_') + '.html';
+    w.document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>w.close(),500);
+  },400);
   notif('✅ '+filtrada.length+' tarjetas QR listas para imprimir','success');
 }
 
 async function registrarAsistencia(qrData) {
-  if (!ventanaActiva && sesion?.rol !== 'admin' && sesion?.rol !== 'auxiliar' && sesion?.rol !== 'tutor') { notif('⏰ Inicia la sesión primero (botón ▶)','error'); return false; }
+  if (!ventanaActiva && sesion?.rol !== 'admin') { notif('⏰ Inicia la sesión primero (botón ▶)','error'); return false; }
   try {
     // QR puede ser solo el id (nuevo formato) o JSON (formato antiguo)
     let estudianteId, nombre='', grado='', seccion='';
@@ -1782,6 +1797,37 @@ async function enviarJustificacion() {
   renderHijosInfo(hijos);
 }
 
+async function exportarJustificacionesExcel() {
+  const justifs = _justificacionesCache || [];
+  if (!justifs.length) { notif('⚠️ No hay justificaciones para exportar','info'); return; }
+  const rows = [['Nombre','Grado','Sección','Fecha','Motivo','Estado','Validado por']];
+  const motLabels = {enfermedad:'Enfermedad',cita:'Cita médica',familiar:'Motivo familiar',otro:'Otro motivo',alerta:'Alerta'};
+  justifs.forEach(j => rows.push([
+    j.nombre||'', j.grado||'', j.seccion||'', j.fecha||'',
+    motLabels[j.motivo]||j.motivo||'', j.estado||'', j.validadoPor||''
+  ]));
+  const csv = rows.map(r => r.map(c => '"'+String(c).replace(/"/g,'""')+'"').join(',')).join('\n');
+  const bom = '\uFEFF';
+  const blob = new Blob([bom+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'justificaciones_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+  notif('📊 Excel descargado correctamente','success');
+}
+
+async function eliminarJustificacionesFiltradas() {
+  const justifs = _justificacionesCache || [];
+  if (!justifs.length) { notif('⚠️ No hay justificaciones para eliminar','info'); return; }
+  if (!confirm('⚠️ ¿Eliminar las ' + justifs.length + ' justificaciones mostradas actualmente? Esta acción no se puede deshacer.')) return;
+  notif('⏳ Eliminando...','info');
+  try {
+    await Promise.all(justifs.map(j => fsDel('justificaciones', j.id)));
+    notif('🗑 ' + justifs.length + ' justificaciones eliminadas','success');
+    renderJustificaciones();
+  } catch(e) { notif('❌ Error al eliminar: '+e.message,'error'); }
+}
+
 async function renderJustificaciones() {
   let justifs=await fsGetAll('justificaciones');
   _justificacionesCache=justifs;
@@ -1862,7 +1908,12 @@ async function renderAlertasBadge() {
 async function actualizarStats() {
   if (sesion?.rol === 'padre') return;
   try {
-    const todos=await fsGetAll('estudiantes');
+    let todos=await fsGetAll('estudiantes');
+    // BUG #6 FIX: auxiliar/tutor ve stats solo de sus grados/secciones asignadas
+    if (sesion?.rol !== 'admin') {
+      if (sesion?.grados?.length) todos=todos.filter(e=>sesion.grados.includes(e.grado));
+      if (sesion?.secciones?.length) todos=todos.filter(e=>sesion.secciones.includes(e.seccion));
+    }
     const fecha=getFecha();
     const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
     const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
@@ -2212,6 +2263,10 @@ async function registrarManualPresente(qrStr) {
 }
 
 async function registrarManualAusente(id,nombre,grado,seccion) {
+  // BUG #5 FIX: validar sesión activa y grado/sección asignada
+  if (!ventanaActiva && sesion?.rol !== 'admin') { notif('⏰ Inicia la sesión primero (botón ▶)','error'); return; }
+  if (sesion?.grados?.length && !sesion.grados.includes(grado)) { notif('❌ No tienes permiso sobre ese grado','error'); return; }
+  if (sesion?.secciones?.length && !sesion.secciones.includes(seccion)) { notif('❌ No tienes permiso sobre esa sección','error'); return; }
   const fecha=getFecha(), hora=new Date().toLocaleTimeString('es-PE');
   const existe=await fsQuery('asistencia',FB.where('fecha','==',fecha),FB.where('estudianteId','==',id));
   if(existe.length){notif('⚠️ Ya tiene registro hoy','warning');return;}
