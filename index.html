@@ -537,7 +537,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
         <div class="progress-label" id="progressLabel">Sin sesión activa</div>
       </div>
       <div class="timer-actions">
-        <button class="btn btn-success" onclick="iniciarSesion()">▶ Iniciar (60 min)</button>
+        <button class="btn btn-success" onclick="iniciarSesion()">▶ Iniciar (30 min)</button>
         <button class="btn btn-danger" onclick="finalizarYMarcarAusentes()">■ Finalizar y marcar ausentes</button>
       </div>
     </div>
@@ -894,8 +894,8 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--texto-suave);display:block;margin-bottom:4px;">GRADO</label>
           <select class="input" id="editEstGrado">
-            <option value="1°">1°</option><option value="2°">2°</option><option value="3°">3°</option>
-            <option value="4°">4°</option><option value="5°">5°</option>
+            <option value="1ro">1ro</option><option value="2do">2do</option><option value="3ro">3ro</option>
+            <option value="4to">4to</option><option value="5to">5to</option>
           </select>
         </div>
         <div>
@@ -1227,7 +1227,7 @@ function irPanel(panel) {
 
 function iniciarSesion() {
   if (ventanaActiva) { notif('⚠️ Ya hay una sesión activa','warning'); return; }
-  ventanaActiva = true; tiempoRestante = 3600;
+  ventanaActiva = true; tiempoRestante = 1800;
   actualizarTimer();
   temporizador = setInterval(() => {
     if (tiempoRestante <= 0) { finalizarSesion(); return; }
@@ -1545,9 +1545,8 @@ async function registrarAsistencia(qrData) {
 async function renderListaAsistencia() {
   const c = document.getElementById('listaAsistencia');
   if (!c) return;
-  // FIX-ROL-7: si es tutor y no tiene grados/secciones asignados, mostrar aviso.
-  // Antes: un tutor sin asignación veía los 800 estudiantes sin restricción.
-  if (sesion?.rol === 'tutor' && !sesion?.grados?.length && !sesion?.secciones?.length) {
+  // FIX-ROL-7: si es tutor o auxiliar y no tiene grados/secciones asignados, mostrar aviso.
+  if ((sesion?.rol === 'tutor' || sesion?.rol === 'auxiliar') && !sesion?.grados?.length && !sesion?.secciones?.length) {
     c.innerHTML='<div style="padding:24px;text-align:center;color:var(--texto-suave);grid-column:1/-1;">⚠️ No tienes grados ni secciones asignados.<br>Pide al Administrador que configure tu cuenta.</div>';
     return;
   }
@@ -1940,6 +1939,7 @@ async function generarReporte() {
   const asistencias=await fsGetAll('asistencia');
   const justifs=await fsGetAll('justificaciones');
   const filtrarFecha=(f)=>{
+    if(!f) return false;
     if(!fi&&!ff) return true;
     const partes=f.split('/'); if(partes.length!==3) return true;
     const d=new Date(partes[2],partes[1]-1,partes[0]);
