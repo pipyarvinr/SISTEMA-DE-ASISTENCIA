@@ -822,6 +822,33 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
   </div>
 </div>
 
+<!-- ══ MODAL LLEGADA JUSTIFICADA ══ -->
+<div id="modalLlegadaJustif" class="modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <span class="modal-title">📄 Registrar Llegada Justificada</span>
+      <button class="modal-close" onclick="document.getElementById('modalLlegadaJustif').classList.remove('open')">✕</button>
+    </div>
+    <div id="llegadaJustifInfo" style="font-weight:700;font-size:14px;margin-bottom:14px;"></div>
+    <div class="form-group">
+      <label>Motivo *</label>
+      <select id="llegadaMotivo" style="padding:10px 12px;border:1.5px solid var(--borde);border-radius:8px;font-family:inherit;font-size:13px;outline:none;width:100%;">
+        <option value="cita">🏥 Cita médica</option>
+        <option value="familiar">👨‍👩‍👧 Motivo familiar</option>
+        <option value="otro">📝 Otro motivo</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Observación (opcional)</label>
+      <input type="text" id="llegadaObservacion" placeholder="Ej: Padre presente con documento" style="padding:10px 12px;border:1.5px solid var(--borde);border-radius:8px;font-family:inherit;font-size:13px;outline:none;width:100%;">
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn btn-primary" style="flex:1;justify-content:center;" onclick="confirmarLlegadaJustif()">✅ Confirmar</button>
+      <button class="btn btn-ghost" style="flex:1;justify-content:center;" onclick="document.getElementById('modalLlegadaJustif').classList.remove('open')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ MODAL JUSTIFICACIÓN ══ -->
 <div id="modalJustif" class="modal">
   <div class="modal-box">
@@ -1618,9 +1645,36 @@ async function cargarTablaAsistencia() {
   tbody.innerHTML = asist.map(a=>{
     const est=a.estado;
     const rowCls=est==='ausente'?'row-ausente':est==='tardanza'?'row-tardanza':'row-presente';
-    const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':'<span class="badge badge-green">✅ Presente</span>';
-    return `<tr class="${rowCls}"><td>${a.nombre||a.estudianteId}</td><td>${a.grado||'—'}</td><td>${a.seccion||'—'}</td><td>${a.hora}</td><td>${badge}</td></tr>`;
+    const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':est==='justificado'?'<span class="badge badge-blue">📄 Justificado</span>':'<span class="badge badge-green">✅ Presente</span>';
+    const btnJustif=(est==='ausente'||est==='tardanza')&&['admin','auxiliar','tutor'].includes(sesion?.rol)?`<button class="btn btn-ghost btn-sm" style="margin-left:6px;font-size:10px;" onclick="abrirLlegadaJustif('${a.estudianteId}','${(a.nombre||'').replace(/'/g,"\\'")}')">📄 Justif.</button>`:'';
+    return `<tr class="${rowCls}"><td>${a.nombre||a.estudianteId}</td><td>${a.grado||'—'}</td><td>${a.seccion||'—'}</td><td>${a.hora}</td><td>${badge}${btnJustif}</td></tr>`;
   }).join('');
+}
+
+let _llegadaJustifEstId=null;
+function abrirLlegadaJustif(estudianteId, nombre){
+  _llegadaJustifEstId=estudianteId;
+  document.getElementById('llegadaJustifInfo').textContent=`Estudiante: ${nombre}`;
+  document.getElementById('llegadaMotivo').value='cita';
+  document.getElementById('llegadaObservacion').value='';
+  document.getElementById('modalLlegadaJustif').classList.add('open');
+}
+async function confirmarLlegadaJustif(){
+  if(!_llegadaJustifEstId) return;
+  const motivo=document.getElementById('llegadaMotivo').value;
+  const observacion=document.getElementById('llegadaObservacion').value.trim();
+  const fecha=getFecha();
+  const hora=new Date().toLocaleTimeString('es-PE');
+  try {
+    // Buscar el registro de asistencia de hoy para ese estudiante
+    const r=await fsQuery('asistencia',FB.where('estudianteId','==',_llegadaJustifEstId),FB.where('fecha','==',fecha));
+    if(!r.length){notif('❌ No se encontró registro de asistencia','error');return;}
+    // Actualizar estado a justificado
+    await FB.updateDoc(FB.doc(FB.db,'asistencia',r[0].id),{estado:'justificado',motivoJustif:motivo,observacionJustif:observacion||'',justificadoPor:sesion?.nombre||'',horaJustif:hora});
+    document.getElementById('modalLlegadaJustif').classList.remove('open');
+    notif(`📄 Llegada justificada registrada correctamente`,'success');
+    cargarTablaAsistencia(); actualizarStats();
+  } catch(e){ notif('❌ Error al actualizar','error'); }
 }
 
 async function buscarPorNombre() {
@@ -1979,8 +2033,8 @@ async function generarReporte() {
       const e=estudiantes.find(x=>x.id===a.estudianteId); if(!e) return '';
       const j=justifs.find(x=>x.estudianteId===a.estudianteId&&x.fecha===a.fecha);
       const est=a.estado;
-      const estadoBadge = est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':'<span class="badge badge-green">✅ Presente</span>';
-      const rowClass = est==='ausente'?'row-ausente':est==='tardanza'?'row-tardanza':'row-presente';
+      const estadoBadge = est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':est==='justificado'?'<span class="badge badge-blue">📄 Justificado</span>':'<span class="badge badge-green">✅ Presente</span>';
+      const rowClass = est==='ausente'?'row-ausente':est==='tardanza'?'row-tardanza':est==='justificado'?'row-presente':'row-presente';
       return `<tr class="${rowClass}"><td>${e.nombre}</td><td>${e.grado}</td><td>${e.seccion}</td><td>${a.fecha}</td><td>${estadoBadge}</td><td>${j?j.motivo:'—'}</td></tr>`;
     }).join('')||'<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--texto-suave);">Sin datos</td></tr>';
   }
@@ -2035,7 +2089,7 @@ async function exportarExcel() {
     const [ga,sa]=a.split('|'),[gb,sb]=b.split('|');
     return (gradoOrden.indexOf(ga)-gradoOrden.indexOf(gb))||secOrden.indexOf(sa)-secOrden.indexOf(sb);
   });
-  let html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:11px;margin:16px;}h1{font-size:15px;color:#b00008;}h3{font-size:13px;color:#b00008;margin:22px 0 6px;border-bottom:2px solid #e8000d;padding-bottom:4px;}table{width:100%;border-collapse:collapse;margin-bottom:8px;}th{background:#b00008;color:white;padding:6px 8px;font-size:10px;}td{padding:5px 8px;border-bottom:1px solid #eee;font-size:10px;}.pres{color:#1a6b3a;font-weight:700;}.aus{color:#e8000d;font-weight:700;}.tard{color:#e67e22;font-weight:700;}@media print{body{margin:6px;}}</style></head><body><h1>📚 IE N.° 0148 — Reporte de Asistencia</h1>`;
+  let html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:11px;margin:16px;}h1{font-size:15px;color:#b00008;}h3{font-size:13px;color:#b00008;margin:22px 0 6px;border-bottom:2px solid #e8000d;padding-bottom:4px;}table{width:100%;border-collapse:collapse;margin-bottom:8px;}th{background:#b00008;color:white;padding:6px 8px;font-size:10px;}td{padding:5px 8px;border-bottom:1px solid #eee;font-size:10px;}.pres{color:#1a6b3a;font-weight:700;}.aus{color:#e8000d;font-weight:700;}.tard{color:#e67e22;font-weight:700;}.just{color:#1a5276;font-weight:700;}@media print{body{margin:6px;}}</style></head><body><h1>📚 IE N.° 0148 — Reporte de Asistencia</h1>`;
   for(const key of claves){
     const g=grupos[key];
     const ids=new Set(g.estudiantes.map(e=>e.id));
@@ -2045,10 +2099,10 @@ async function exportarExcel() {
     fechasMostrar.forEach(f=>{html+=`<th>${f}</th>`;});
     html+=`<th>Hoy</th><th>Justificación</th></tr></thead><tbody>`;
     g.estudiantes.sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach((e,i)=>{
-      const regHoy=asistencias.find(a=>a.estudianteId===e.id&&a.fecha===fecha);const estHoy=regHoy?.estado;const clsHoy=estHoy==='puntual'?'pres':estHoy==='tardanza'?'tard':estHoy==='ausente'?'aus':'aus';const lblHoy=estHoy==='puntual'?'✅ Puntual':estHoy==='tardanza'?'⏰ Tardanza':estHoy==='ausente'?'❌ Ausente':'❌';
+      const regHoy=asistencias.find(a=>a.estudianteId===e.id&&a.fecha===fecha);const estHoy=regHoy?.estado;const clsHoy=estHoy==='puntual'?'pres':estHoy==='tardanza'?'tard':estHoy==='ausente'?'aus':estHoy==='justificado'?'just':'aus';const lblHoy=estHoy==='puntual'?'✅ Puntual':estHoy==='tardanza'?'⏰ Tardanza':estHoy==='ausente'?'❌ Ausente':estHoy==='justificado'?'📄 Justificado':'❌';
       const justHoy=justifs.find(j=>j.estudianteId===e.id&&j.fecha===fecha);
       html+=`<tr><td>${i+1}</td><td>${e.nombre}</td><td>${e.dniPadre||'—'}</td>`;
-      fechasMostrar.forEach(f=>{const r=asistencias.find(a=>a.estudianteId===e.id&&a.fecha===f);const est=r?.estado;const cls=est==='puntual'?'pres':est==='tardanza'?'tard':est==='ausente'?'aus':'aus';const lbl=est==='puntual'?'✅ Puntual':est==='tardanza'?'⏰ Tardanza':est==='ausente'?'❌ Ausente':'❌';html+=`<td class="${cls}">${lbl}</td>`;});
+      fechasMostrar.forEach(f=>{const r=asistencias.find(a=>a.estudianteId===e.id&&a.fecha===f);const est=r?.estado;const cls=est==='puntual'?'pres':est==='tardanza'?'tard':est==='ausente'?'aus':est==='justificado'?'just':'aus';const lbl=est==='puntual'?'✅ Puntual':est==='tardanza'?'⏰ Tardanza':est==='ausente'?'❌ Ausente':est==='justificado'?'📄 Justificado':'❌';html+=`<td class="${cls}">${lbl}</td>`;});
       html+=`<td class="${clsHoy}">${lblHoy}</td><td>${justHoy?justHoy.motivo:'—'}</td></tr>`;
     });
     html+=`</tbody></table>`;
