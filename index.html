@@ -478,7 +478,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
       <input type="password" class="lin" id="loginPass" placeholder="Contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')hacerLogin()">
     </div>
     <div id="loginPadreDiv" class="hide">
-      <input type="text" class="lin" id="loginDNI" placeholder="Tu DNI del apoderado (8 dígitos)" maxlength="8" onkeydown="if(event.key==='Enter')hacerLoginPadre()">
+      <input type="text" class="lin" id="loginDNI" placeholder="DNI (8 dígitos) o carnet extranjería" maxlength="12" onkeydown="if(event.key==='Enter')hacerLoginPadre()">
     </div>
     <button class="login-btn" id="loginBtn" onclick="hacerLogin()">🔐 Ingresar</button>
     <div class="login-hint" id="loginHint" style="display:none;">
@@ -585,7 +585,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
               <select id="sSeccion"><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option></select>
             </div>
           </div>
-          <div class="form-group" style="margin-top:8px;"><label>DNI del Apoderado *</label><input type="text" id="sDNI" placeholder="8 dígitos" maxlength="8"></div>
+          <div class="form-group" style="margin-top:8px;"><label>DNI del Apoderado *</label><input type="text" id="sDNI" placeholder="DNI u 8 dígitos o carnet" maxlength="12"></div>
           <div class="form-group" style="margin-top:8px;"><label>WhatsApp apoderado</label><input type="text" id="sTelefono" placeholder="51987654321"></div>
           <button class="btn btn-primary" style="margin-top:14px;" onclick="agregarEstudiante()">➕ Agregar Estudiante</button>
         </div>
@@ -622,7 +622,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
             <div style="font-size:2em;margin-bottom:6px;text-align:center;">📱</div>
             <div style="font-weight:700;font-size:14px;margin-bottom:4px;">Buscar por DNI apoderado</div>
             <div style="display:flex;gap:8px;">
-              <input type="text" id="dniBusq" placeholder="DNI (8 dígitos)" maxlength="8" style="flex:1;padding:9px 11px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;outline:none;" onkeydown="if(event.key==='Enter')buscarPorDNI()">
+              <input type="text" id="dniBusq" placeholder="DNI u carnet de extranjería" maxlength="12" style="flex:1;padding:9px 11px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;outline:none;" onkeydown="if(event.key==='Enter')buscarPorDNI()">
               <button class="btn btn-primary btn-sm" onclick="buscarPorDNI()">Buscar</button>
             </div>
             <div id="resDNI" style="margin-top:10px;max-height:130px;overflow-y:auto;"></div>
@@ -702,7 +702,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
           <div class="card-header"><span class="card-title">👪 Portal del Apoderado</span></div>
           <div class="info-box"><strong>Consulta la asistencia de tu hijo(a)</strong>Ingresa tu DNI para ver el estado de asistencia.</div>
           <div style="display:flex;gap:8px;">
-            <input type="text" id="padreInputDNI" placeholder="Tu DNI (8 dígitos)" maxlength="8" style="flex:1;padding:10px 12px;border:1.5px solid var(--borde);border-radius:8px;font-size:14px;font-family:inherit;outline:none;" onkeydown="if(event.key==='Enter')consultarPadre()">
+            <input type="text" id="padreInputDNI" placeholder="DNI u carnet de extranjería" maxlength="12" style="flex:1;padding:10px 12px;border:1.5px solid var(--borde);border-radius:8px;font-size:14px;font-family:inherit;outline:none;" onkeydown="if(event.key==='Enter')consultarPadre()">
             <button class="btn btn-primary" onclick="consultarPadre()">Consultar</button>
           </div>
         </div>
@@ -1095,7 +1095,7 @@ async function hacerLoginPadre() {
   const dni = document.getElementById('loginDNI').value.trim();
   const err = document.getElementById('loginErr');
   err.style.display = 'none';
-  if (!/^\d{8}$/.test(dni)) { err.textContent='⚠️ Ingresa un DNI válido de 8 dígitos'; err.style.display='block'; return; }
+  if (!/^(\d{8}|[A-Za-z0-9]{9,12})$/.test(dni)) { err.textContent='⚠️ Ingresa un DNI (8 dígitos) o carnet de extranjería válido'; err.style.display='block'; return; }
   const btn = document.getElementById('loginBtn');
   btn.disabled = true; btn.textContent = '⏳ Verificando…';
   try {
@@ -1289,7 +1289,7 @@ async function agregarEstudiante() {
   const dniPadre = document.getElementById('sDNI').value.trim();
   const telefono = document.getElementById('sTelefono').value.trim();
   if (!nombre || !dniPadre) { notif('❌ Nombre y DNI son obligatorios','error'); return; }
-  if (!/^\d{8}$/.test(dniPadre)) { notif('❌ DNI debe tener 8 dígitos','error'); return; }
+  if (!/^(\d{8}|[A-Za-z0-9]{9,12})$/.test(dniPadre)) { notif('❌ DNI o carnet de extranjería inválido','error'); return; }
   try {
     await fsAdd('estudiantes',{ nombre, grado, seccion, dniPadre, telefono });
     notif('✅ Estudiante registrado en Firebase','success');
@@ -1388,7 +1388,7 @@ async function guardarEdicionEstudiante() {
   const dniPadre = document.getElementById('editEstDNI').value.trim();
   const telefono = document.getElementById('editEstTelefono').value.trim();
   if (!nombre || !dniPadre) { notif('❌ Nombre y DNI son obligatorios','error'); return; }
-  if (!/^\d{8}$/.test(dniPadre)) { notif('❌ DNI debe tener 8 dígitos','error'); return; }
+  if (!/^(\d{8}|[A-Za-z0-9]{9,12})$/.test(dniPadre)) { notif('❌ DNI o carnet de extranjería inválido','error'); return; }
   try {
     await fsUpdate('estudiantes', id, { nombre, grado, seccion, dniPadre, telefono });
     document.getElementById('modalEditarEst').classList.remove('open');
@@ -1632,7 +1632,7 @@ async function buscarPorNombre() {
 async function buscarPorDNI() {
   const dni=document.getElementById('dniBusq').value.trim();
   const c=document.getElementById('resDNI');
-  if(!/^\d{8}$/.test(dni)){notif('❌ DNI debe tener 8 dígitos','error');return;}
+  if(!/^(\d{8}|[A-Za-z0-9]{9,12})$/.test(dni)){notif('❌ DNI o carnet de extranjería inválido','error');return;}
   // FIX-PERF-4c: consulta directa por DNI en lugar de descargar todos los estudiantes
   const hijos=await fsQuery('estudiantes', FB.where('dniPadre','==',dni));
   if(!hijos.length){c.innerHTML='<div style="font-size:12px;color:var(--rojo);background:#ffe8e8;padding:8px;border-radius:8px;">❌ Sin estudiantes con ese DNI</div>';return;}
@@ -1651,7 +1651,7 @@ async function buscarPorDNI() {
 
 async function consultarPadre() {
   const dni=document.getElementById('padreInputDNI').value.trim();
-  if(!/^\d{8}$/.test(dni)){notif('❌ DNI debe tener 8 dígitos','error');return;}
+  if(!/^(\d{8}|[A-Za-z0-9]{9,12})$/.test(dni)){notif('❌ DNI o carnet de extranjería inválido','error');return;}
   try {
     // Obtener custom token desde la Cloud Function
     const resp = await fetch('https://loginpadre-gv5rqbin3a-uc.a.run.app', {
@@ -1897,7 +1897,8 @@ async function renderAlertas() {
 
 async function renderAlertasBadge() {
   if (sesion?.rol === 'padre') return;
-  const justifs=await fsGetAll('justificaciones');
+  const justifs=_justificacionesCache?.length ? _justificacionesCache : await fsGetAll('justificaciones');
+  if (!_justificacionesCache?.length) _justificacionesCache = justifs;
   const pendientes=justifs.filter(j=>j.estado==='pendiente'||j.estado==='alerta').length;
   const badge=document.getElementById('navAlertaBadge');
   if(badge){badge.style.display=pendientes>0?'':'none';badge.textContent=pendientes;}
@@ -1908,16 +1909,18 @@ async function renderAlertasBadge() {
 async function actualizarStats() {
   if (sesion?.rol === 'padre') return;
   try {
-    let todos=await fsGetAll('estudiantes');
-    // BUG #6 FIX: auxiliar/tutor ve stats solo de sus grados/secciones asignadas
+    // Usa caché en vez de llamar a Firebase — evita lecturas innecesarias
+    let todos = _estudiantesCache?.length ? _estudiantesCache : await fsGetAll('estudiantes');
+    if (!_estudiantesCache?.length) _estudiantesCache = todos;
     if (sesion?.rol !== 'admin') {
       if (sesion?.grados?.length) todos=todos.filter(e=>sesion.grados.includes(e.grado));
       if (sesion?.secciones?.length) todos=todos.filter(e=>sesion.secciones.includes(e.seccion));
     }
-    const fecha=getFecha();
-    const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
+    const asist = _asistenciaHoyCache?.length ? _asistenciaHoyCache : await fsQuery('asistencia',FB.where('fecha','==',getFecha()));
+    if (!_asistenciaHoyCache?.length) _asistenciaHoyCache = asist;
     const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
-    const justifs=await fsGetAll('justificaciones');
+    const justifs = _justificacionesCache?.length ? _justificacionesCache : await fsGetAll('justificaciones');
+    if (!_justificacionesCache?.length) _justificacionesCache = justifs;
     const pendientes=justifs.filter(j=>j.estado==='pendiente'||j.estado==='alerta').length;
     const total=todos.length, presentes=[...presSet].filter(id=>todos.find(e=>e.id===id)).length;
     const ausentes=total-presentes, pct=total?Math.round(presentes/total*100):0;
