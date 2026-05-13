@@ -537,7 +537,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
         <div class="progress-label" id="progressLabel">Sin sesión activa</div>
       </div>
       <div class="timer-actions">
-        <button class="btn btn-success" onclick="iniciarSesion()">▶ Iniciar (60 min)</button>
+        <button class="btn btn-success" onclick="iniciarSesion()">▶ Iniciar sesión (hasta 13:30)</button>
         <button class="btn btn-danger" onclick="finalizarYMarcarAusentes()">■ Finalizar y marcar ausentes</button>
       </div>
     </div>
@@ -1228,14 +1228,22 @@ function irPanel(panel) {
 
 function iniciarSesion() {
   if (ventanaActiva) { notif('⚠️ Ya hay una sesión activa','warning'); return; }
-  ventanaActiva = true; tiempoRestante = 3600;
+  // Calcular segundos restantes hasta las 13:30 (fin del período de tardanza)
+  const ahora = new Date();
+  const finSesion = new Date(ahora);
+  finSesion.setHours(13, 30, 0, 0);
+  const segsHasta1330 = Math.floor((finSesion - ahora) / 1000);
+  // Si ya pasaron las 13:30, usar 60 min por defecto; si falta más de 3h, también 60 min
+  tiempoRestante = (segsHasta1330 > 0 && segsHasta1330 <= 10800) ? segsHasta1330 : 3600;
+  ventanaActiva = true;
   actualizarTimer();
   temporizador = setInterval(() => {
     if (tiempoRestante <= 0) { finalizarSesion(); return; }
     tiempoRestante--; actualizarTimer();
     if (tiempoRestante <= 300) document.getElementById('timerStatus').classList.add('blink');
   }, 1000);
-  notif('🟢 Sesión iniciada — 60 minutos activos','success');
+  const minRestantes = Math.ceil(tiempoRestante / 60);
+  notif(`🟢 Sesión iniciada — activa hasta las 13:30 (${minRestantes} min)`, 'success');
   renderListaAsistencia();
 }
 function finalizarSesion() {
@@ -1537,11 +1545,19 @@ async function registrarAsistencia(qrData) {
     const hora = ahora.toLocaleTimeString('es-PE');
     const hh = ahora.getHours(), mm = ahora.getMinutes();
     const totalMin = hh * 60 + mm;
-    // Puntual: 12:50-13:05 | Tardanza: 13:06-13:30 | Ausente: desde 13:31
+    // Puntual: 12:50-13:05 | Tardanza: 13:06-13:30 | Fuera de horario: antes de 12:50 o después de 13:30
     let estado;
     if (totalMin >= 770 && totalMin <= 785) estado = 'puntual';       // 12:50-13:05
     else if (totalMin >= 786 && totalMin <= 810) estado = 'tardanza';  // 13:06-13:30
-    else estado = 'ausente';                                           // 13:31 en adelante (o antes de 12:50)
+    else {
+      // Fuera del rango horario → avisar y NO registrar como ausente automáticamente
+      if (totalMin < 770) {
+        notif(`⚠️ Fuera de horario — el registro abre a las 12:50. Hora actual: ${hora}`, 'error');
+      } else {
+        notif(`⚠️ Fuera de horario — el período de entrada cerró a las 13:30. Hora actual: ${hora}`, 'error');
+      }
+      return false;
+    }
     await fsAdd('asistencia',{ estudianteId, nombre, grado, seccion, fecha, hora, estado, registradoPor: sesion?.uid||'padre' });
     const estadoLabel = estado==='puntual'?'✅ Puntual':estado==='tardanza'?'⏰ Tardanza':'❌ Ausente';
     notif(`${estadoLabel} — ${nombre} — ${grado} "${seccion}" — ${hora}`,'success');
