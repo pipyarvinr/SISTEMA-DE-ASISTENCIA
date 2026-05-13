@@ -334,7 +334,7 @@ th{background:var(--gris-bg);font-weight:700;color:var(--texto-suave);text-trans
 td{padding:9px 11px;border-bottom:1px solid var(--borde);color:var(--texto);}
 tr:last-child td{border-bottom:none;}
 tr.row-presente{background:#fff0f0;}
-tr.row-ausente{background:#ffe8e8;}
+tr.row-ausente{background:#ffe8e8;}tr.row-tardanza{background:#fef9ec;}
 tr.row-justificado{background:#eaf4fb;}
 tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
 
@@ -1533,9 +1533,18 @@ async function registrarAsistencia(qrData) {
     const fecha = getFecha();
     const existente = await fsQuery('asistencia', FB.where('estudianteId','==',estudianteId), FB.where('fecha','==',fecha));
     if (existente.length) { notif(`⚠️ ${nombre} ya fue registrado hoy`,'warning'); return false; }
-    const hora = new Date().toLocaleTimeString('es-PE');
-    await fsAdd('asistencia',{ estudianteId, nombre, grado, seccion, fecha, hora, estado:'presente', registradoPor: sesion?.uid||'padre' });
-    notif(`✅ ${nombre} — ${grado} "${seccion}" — ${hora}`,'success');
+    const ahora = new Date();
+    const hora = ahora.toLocaleTimeString('es-PE');
+    const hh = ahora.getHours(), mm = ahora.getMinutes();
+    const totalMin = hh * 60 + mm;
+    // Puntual: 12:50-13:05 | Tardanza: 13:06-13:30 | Ausente: desde 13:31
+    let estado;
+    if (totalMin >= 770 && totalMin <= 785) estado = 'puntual';       // 12:50-13:05
+    else if (totalMin >= 786 && totalMin <= 810) estado = 'tardanza';  // 13:06-13:30
+    else estado = 'ausente';                                           // 13:31 en adelante (o antes de 12:50)
+    await fsAdd('asistencia',{ estudianteId, nombre, grado, seccion, fecha, hora, estado, registradoPor: sesion?.uid||'padre' });
+    const estadoLabel = estado==='puntual'?'✅ Puntual':estado==='tardanza'?'⏰ Tardanza':'❌ Ausente';
+    notif(`${estadoLabel} — ${nombre} — ${grado} "${seccion}" — ${hora}`,'success');
     renderListaAsistencia(); cargarTablaAsistencia(); actualizarStats();
     return true;
   } catch(err) {
@@ -1568,9 +1577,11 @@ async function renderListaAsistencia() {
   const justifSet = new Set(justifs.map(j=>j.estudianteId));
   if (!lista.length) { c.innerHTML='<div style="padding:24px;text-align:center;color:var(--texto-suave);grid-column:1/-1;">📭 Sin estudiantes</div>'; return; }
   c.innerHTML = lista.map(e => {
-    const pres=presSet.has(e.id), ausen=ausenteSet.has(e.id), just=justifSet.has(e.id);
-    const cls=pres?'presente':just?'justificado':'ausente';
-    const badge=pres?'<span class="badge badge-green">✅ Presente</span>':ausen?'<span class="badge badge-red">❌ Ausente</span>':just?'<span class="badge badge-blue">📄 Justificado</span>':'<span class="badge badge-red">❌ Ausente</span>';
+    const regHoy=asist.find(a=>a.estudianteId===e.id);
+    const just=justifSet.has(e.id);
+    const est=regHoy?.estado;
+    const cls=est==='puntual'?'presente':est==='tardanza'?'tardanza':est==='ausente'?'ausente':just?'justificado':'';
+    const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':est==='presente'?'<span class="badge badge-green">✅ Presente</span>':just?'<span class="badge badge-blue">📄 Justificado</span>':'<span class="badge" style="background:#f0f0f0;color:#888;">⏳ Sin registro</span>';
     const qrStr = JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
     return `<div class="student-card ${cls}">
       <div class="student-name">${e.nombre}</div>
@@ -1605,8 +1616,10 @@ async function cargarTablaAsistencia() {
   if (!asist.length) { tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--texto-suave);padding:18px;">Sin registros hoy</td></tr>'; return; }
   asist.sort((a,b)=>a.hora<b.hora?1:-1);
   tbody.innerHTML = asist.map(a=>{
-    const esAusente=a.estado==='ausente';
-    return `<tr class="${esAusente?'row-ausente':'row-presente'}"><td>${a.nombre||a.estudianteId}</td><td>${a.grado||'—'}</td><td>${a.seccion||'—'}</td><td>${a.hora}</td><td>${esAusente?'<span class="badge badge-red">❌ Ausente</span>':'<span class="badge badge-green">✅ Presente</span>'}</td></tr>`;
+    const est=a.estado;
+    const rowCls=est==='ausente'?'row-ausente':est==='tardanza'?'row-tardanza':'row-presente';
+    const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':'<span class="badge badge-green">✅ Presente</span>';
+    return `<tr class="${rowCls}"><td>${a.nombre||a.estudianteId}</td><td>${a.grado||'—'}</td><td>${a.seccion||'—'}</td><td>${a.hora}</td><td>${badge}</td></tr>`;
   }).join('');
 }
 
@@ -1618,13 +1631,15 @@ async function buscarPorNombre() {
   lista = lista.filter(e=>e.nombre.toLowerCase().includes(q));
   const fecha=getFecha();
   const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
-  const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
+  const estadoMap={}; asist.forEach(a=>{estadoMap[a.estudianteId]=a.estado;});
   c.innerHTML=lista.slice(0,8).map(e=>{
-    const pres=presSet.has(e.id);
+    const est=estadoMap[e.id];
+    const registrado=!!est;
     const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
-    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;margin-bottom:5px;background:${pres?'#fff0f0':'var(--gris-bg)'};border:1px solid ${pres?'#a9dfbf':'var(--borde)'};">
+    const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':null;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;margin-bottom:5px;background:${registrado?'#fff0f0':'var(--gris-bg)'};border:1px solid ${registrado?'#a9dfbf':'var(--borde)'};">
       <div><div style="font-size:12px;font-weight:700;">${e.nombre}</div><div style="font-size:10px;color:var(--texto-suave);">${e.grado} — Sección ${e.seccion}</div></div>
-      ${pres ? '<span class="badge badge-green">✅ Presente</span>' : `<div style="display:flex;gap:4px;"><button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">✅</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌</button></div>`}
+      ${badge ? badge : `<div style="display:flex;gap:4px;"><button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">✅</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌</button></div>`}
     </div>`;
   }).join('')||'<div style="padding:8px;font-size:12px;color:var(--texto-suave);">Sin resultados</div>';
 }
@@ -1638,13 +1653,15 @@ async function buscarPorDNI() {
   if(!hijos.length){c.innerHTML='<div style="font-size:12px;color:var(--rojo);background:#ffe8e8;padding:8px;border-radius:8px;">❌ Sin estudiantes con ese DNI</div>';return;}
   const fecha=getFecha();
   const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
-  const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
+  const estadoMapDNI={}; asist.forEach(a=>{estadoMapDNI[a.estudianteId]=a.estado;});
   c.innerHTML=hijos.map(e=>{
-    const pres=presSet.has(e.id);
+    const est=estadoMapDNI[e.id];
+    const registrado=!!est;
     const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
-    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border-radius:9px;margin-bottom:6px;background:${pres?'#fff0f0':'var(--gris-bg)'};border:1.5px solid ${pres?'#a9dfbf':'var(--borde)'};">
+    const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':null;
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border-radius:9px;margin-bottom:6px;background:${registrado?'#fff0f0':'var(--gris-bg)'};border:1.5px solid ${registrado?'#a9dfbf':'var(--borde)'};">
       <div><div style="font-size:13px;font-weight:700;">${e.nombre}</div><div style="font-size:11px;color:var(--texto-suave);">${e.grado} — Sección ${e.seccion}</div></div>
-      ${pres?'<span class="badge badge-green">✅ Presente</span>':`<button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">Registrar</button>`}
+      ${badge ? badge : `<button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">Registrar</button>`}
     </div>`;
   }).join('');
 }
@@ -1958,8 +1975,10 @@ async function generarReporte() {
     tbody.innerHTML=asistFilt.sort((a,b)=>a.fecha<b.fecha?1:-1).map(a=>{
       const e=estudiantes.find(x=>x.id===a.estudianteId); if(!e) return '';
       const j=justifs.find(x=>x.estudianteId===a.estudianteId&&x.fecha===a.fecha);
-      const esAusente=a.estado==='ausente';
-      return `<tr class="${esAusente?'row-ausente':'row-presente'}"><td>${e.nombre}</td><td>${e.grado}</td><td>${e.seccion}</td><td>${a.fecha}</td><td>${esAusente?'<span class="badge badge-red">❌ Ausente</span>':'<span class="badge badge-green">✅ Presente</span>'}</td><td>${j?j.motivo:'—'}</td></tr>`;
+      const est=a.estado;
+      const estadoBadge = est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':'<span class="badge badge-green">✅ Presente</span>';
+      const rowClass = est==='ausente'?'row-ausente':est==='tardanza'?'row-tardanza':'row-presente';
+      return `<tr class="${rowClass}"><td>${e.nombre}</td><td>${e.grado}</td><td>${e.seccion}</td><td>${a.fecha}</td><td>${estadoBadge}</td><td>${j?j.motivo:'—'}</td></tr>`;
     }).join('')||'<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--texto-suave);">Sin datos</td></tr>';
   }
   const fechasUnicas=[...new Set(asistFilt.map(a=>a.fecha))].slice(-7);
@@ -2013,7 +2032,7 @@ async function exportarExcel() {
     const [ga,sa]=a.split('|'),[gb,sb]=b.split('|');
     return (gradoOrden.indexOf(ga)-gradoOrden.indexOf(gb))||secOrden.indexOf(sa)-secOrden.indexOf(sb);
   });
-  let html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:11px;margin:16px;}h1{font-size:15px;color:#b00008;}h3{font-size:13px;color:#b00008;margin:22px 0 6px;border-bottom:2px solid #e8000d;padding-bottom:4px;}table{width:100%;border-collapse:collapse;margin-bottom:8px;}th{background:#b00008;color:white;padding:6px 8px;font-size:10px;}td{padding:5px 8px;border-bottom:1px solid #eee;font-size:10px;}.pres{color:#1a6b3a;font-weight:700;}.aus{color:#e8000d;font-weight:700;}@media print{body{margin:6px;}}</style></head><body><h1>📚 IE N.° 0148 — Reporte de Asistencia</h1>`;
+  let html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:11px;margin:16px;}h1{font-size:15px;color:#b00008;}h3{font-size:13px;color:#b00008;margin:22px 0 6px;border-bottom:2px solid #e8000d;padding-bottom:4px;}table{width:100%;border-collapse:collapse;margin-bottom:8px;}th{background:#b00008;color:white;padding:6px 8px;font-size:10px;}td{padding:5px 8px;border-bottom:1px solid #eee;font-size:10px;}.pres{color:#1a6b3a;font-weight:700;}.aus{color:#e8000d;font-weight:700;}.tard{color:#e67e22;font-weight:700;}@media print{body{margin:6px;}}</style></head><body><h1>📚 IE N.° 0148 — Reporte de Asistencia</h1>`;
   for(const key of claves){
     const g=grupos[key];
     const ids=new Set(g.estudiantes.map(e=>e.id));
@@ -2023,11 +2042,11 @@ async function exportarExcel() {
     fechasMostrar.forEach(f=>{html+=`<th>${f}</th>`;});
     html+=`<th>Hoy</th><th>Justificación</th></tr></thead><tbody>`;
     g.estudiantes.sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach((e,i)=>{
-      const presHoyEst=asistencias.some(a=>a.estudianteId===e.id&&a.fecha===fecha);
+      const regHoy=asistencias.find(a=>a.estudianteId===e.id&&a.fecha===fecha);const estHoy=regHoy?.estado;const clsHoy=estHoy==='puntual'?'pres':estHoy==='tardanza'?'tard':estHoy==='ausente'?'aus':'aus';const lblHoy=estHoy==='puntual'?'✅ Puntual':estHoy==='tardanza'?'⏰ Tardanza':estHoy==='ausente'?'❌ Ausente':'❌';
       const justHoy=justifs.find(j=>j.estudianteId===e.id&&j.fecha===fecha);
       html+=`<tr><td>${i+1}</td><td>${e.nombre}</td><td>${e.dniPadre||'—'}</td>`;
-      fechasMostrar.forEach(f=>{const p=asistencias.some(a=>a.estudianteId===e.id&&a.fecha===f&&a.estado!=='ausente');html+=`<td class="${p?'pres':'aus'}">${p?'✅':'❌'}</td>`;});
-      html+=`<td class="${presHoyEst?'pres':'aus'}">${presHoyEst?'✅':'❌'}</td><td>${justHoy?justHoy.motivo:'—'}</td></tr>`;
+      fechasMostrar.forEach(f=>{const r=asistencias.find(a=>a.estudianteId===e.id&&a.fecha===f);const est=r?.estado;const cls=est==='puntual'?'pres':est==='tardanza'?'tard':est==='ausente'?'aus':'aus';const lbl=est==='puntual'?'✅ Puntual':est==='tardanza'?'⏰ Tardanza':est==='ausente'?'❌ Ausente':'❌';html+=`<td class="${cls}">${lbl}</td>`;});
+      html+=`<td class="${clsHoy}">${lblHoy}</td><td>${justHoy?justHoy.motivo:'—'}</td></tr>`;
     });
     html+=`</tbody></table>`;
   }
