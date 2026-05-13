@@ -1802,10 +1802,10 @@ async function enviarJustificacion() {
       document.getElementById('modalJustif').classList.remove('open');
       return;
     }
-    // Verificar si ya existe una justificación para ese día
-    const justifExist=await fsQuery('justificaciones',FB.where('estudianteId','==',justifEstudianteId),FB.where('fecha','==',fecha));
-    if(justifExist.length){notif('⚠️ Ya existe una justificación para este estudiante hoy.','warning');document.getElementById('modalJustif').classList.remove('open');return;}
   }
+  // Verificar duplicado para cualquier tipo (justificación o alerta)
+  const justifExist=await fsQuery('justificaciones',FB.where('estudianteId','==',justifEstudianteId),FB.where('fecha','==',fecha));
+  if(justifExist.length){notif('⚠️ Ya existe una justificación o alerta para este estudiante hoy.','warning');document.getElementById('modalJustif').classList.remove('open');return;}
   const e=await fsGet('estudiantes',justifEstudianteId);
   const justif={estudianteId:justifEstudianteId,nombre:e?.nombre||'',grado:e?.grado||'',seccion:e?.seccion||'',fecha,hora,motivo:motivoSel,detalle,evidencia:motivoSel!=='alerta'?(evidenciaBase64||null):null,estado:motivoSel==='alerta'?'alerta':'pendiente',telefono:e?.telefono||''};
   await fsAdd('justificaciones',justif);
@@ -2083,7 +2083,7 @@ async function renderListaUsuarios() {
   c.innerHTML=usuarios.map(u=>`
     <div class="user-row">
       <div><div class="user-row-name">${u.nombre}</div><div class="user-row-sub">${u.email} · <span class="role-tag ${rolTag[u.rol]||''}">${rolLabel[u.rol]||u.rol}</span></div></div>
-      <div style="display:flex;gap:6px;">${u.id!==sesion?.uid?`<button class="btn btn-danger btn-sm" onclick="eliminarUsuario('${u.id}','${u.email}')">🗑</button>`:'<span style="font-size:11px;color:var(--verde);">(tú)</span>'}</div>
+      <div style="display:flex;gap:6px;">${u.id!==sesion?.uid?`<button class="btn btn-ghost btn-sm" onclick="editarUsuario('${u.id}')">✏️</button><button class="btn btn-danger btn-sm" onclick="eliminarUsuario('${u.id}','${u.email}')">🗑</button>`:'<span style="font-size:11px;color:var(--verde);">(tú)</span>'}</div>
     </div>`).join('');
 }
 
@@ -2097,12 +2097,33 @@ function abrirModalUsuario() {
   [...document.getElementById('uGrados').options].forEach(o=>o.selected=false);
   [...document.getElementById('uSecciones').options].forEach(o=>o.selected=false);
   document.getElementById('uRol').value='auxiliar';
+  // Restaurar campos que se ocultan en edición
+  document.getElementById('uPass').closest('.form-group').style.display='';
+  document.getElementById('adminPassDiv').style.display='';
   toggleAsignacion();
   document.getElementById('modalUsuario').classList.add('open');
 }
 function cerrarModalUsuario(){
   const ap=document.getElementById('uAdminPass'); if(ap) ap.value='';
   document.getElementById('modalUsuario').classList.remove('open');
+}
+async function editarUsuario(uid){
+  const u=await fsGet('usuarios',uid);
+  if(!u){notif('❌ No se encontró el usuario','error');return;}
+  editandoUsuarioId=uid;
+  document.getElementById('modalUsuarioTit').textContent='Editar Usuario';
+  document.getElementById('uNombre').value=u.nombre||'';
+  document.getElementById('uEmail').value=u.email||'';
+  document.getElementById('uPass').value='';
+  document.getElementById('uRol').value=u.rol||'auxiliar';
+  // Ocultar campos que no aplican en edición
+  document.getElementById('uPass').closest('.form-group').style.display='none';
+  document.getElementById('adminPassDiv').style.display='none';
+  // Marcar grados y secciones actuales
+  [...document.getElementById('uGrados').options].forEach(o=>o.selected=(u.grados||[]).includes(o.value));
+  [...document.getElementById('uSecciones').options].forEach(o=>o.selected=(u.secciones||[]).includes(o.value));
+  toggleAsignacion();
+  document.getElementById('modalUsuario').classList.add('open');
 }
 
 async function guardarUsuario() {
@@ -2112,22 +2133,32 @@ async function guardarUsuario() {
   const rol=document.getElementById('uRol').value;
   const grados=[...document.getElementById('uGrados').selectedOptions].map(o=>o.value);
   const secciones=[...document.getElementById('uSecciones').selectedOptions].map(o=>o.value);
-  // FIX-SEC-2: leer la contraseña del admin desde el campo del modal (no desde prompt)
-  const adminPass=document.getElementById('uAdminPass').value;
   if(!nombre||!email){notif('❌ Nombre y correo son obligatorios','error');return;}
+  // MODO EDICIÓN: solo actualiza nombre, rol, grados y secciones en Firestore
+  if(editandoUsuarioId){
+    const btn=document.querySelector('#modalUsuario .btn-primary');
+    btn.disabled=true; btn.textContent='⏳ Guardando…';
+    try {
+      await FB.setDoc(FB.doc(FB.db,'usuarios',editandoUsuarioId),{nombre,email,rol,grados,secciones},{merge:true});
+      notif(`✅ Usuario "${nombre}" actualizado correctamente`,'success');
+      cerrarModalUsuario(); renderListaUsuarios();
+    } catch(e) {
+      notif('❌ Error al actualizar usuario','error');
+    }
+    btn.disabled=false; btn.textContent='💾 Guardar';
+    return;
+  }
+  // MODO CREACIÓN
+  const adminPass=document.getElementById('uAdminPass').value;
   if(pass.length<6){notif('❌ Contraseña mínimo 6 caracteres','error');return;}
   if(!adminPass){notif('❌ Debes ingresar tu contraseña de administrador','error');return;}
   const btn=document.querySelector('#modalUsuario .btn-primary');
   btn.disabled=true; btn.textContent='⏳ Creando…';
-  // Guardar credenciales del admin actual para reconectar después
   const adminEmail=sesion?.email;
   try {
-    // BUG #1 FIX: Firebase desloguea al admin al crear otro usuario.
-    // FIX-SEC-2: la contraseña ya viene del campo del modal, no de prompt().
     _ignorarAuthChange=true;
     const cred=await FB.createUserWithEmailAndPassword(FB.auth,email,pass);
     await FB.setDoc(FB.doc(FB.db,'usuarios',cred.user.uid),{nombre,email,rol,grados,secciones,creadoEn:FB.serverTimestamp()});
-    // Reconectar al admin original inmediatamente
     await FB.signInWithEmailAndPassword(FB.auth,adminEmail,adminPass);
     _ignorarAuthChange=false;
     notif(`✅ Usuario "${nombre}" creado correctamente`,'success');
@@ -2140,7 +2171,6 @@ async function guardarUsuario() {
     else if(e.code==='auth/weak-password') msg='❌ La contraseña es demasiado débil (mín. 6 caracteres)';
     else if(e.code==='auth/wrong-password'||e.code==='auth/invalid-credential') msg='❌ Tu contraseña de administrador es incorrecta. Recarga la página e inicia sesión nuevamente.';
     notif(msg,'error');
-    // Intentar reconectar al admin si algo falló después de createUser
     if(adminEmail&&adminPass){
       try{await FB.signInWithEmailAndPassword(FB.auth,adminEmail,adminPass);}catch(_){}
     }
