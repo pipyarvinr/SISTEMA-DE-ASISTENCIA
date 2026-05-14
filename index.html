@@ -35,15 +35,15 @@
     lang: "es",
     icons: [
       {
-        src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='38' fill='%23e8000d'/><text y='.85em' font-size='140' x='20'>📚</text></svg>",
+        src: "logo.jpeg",
         sizes: "192x192",
-        type: "image/svg+xml",
+        type: "image/jpeg",
         purpose: "any maskable"
       },
       {
-        src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%23e8000d'/><text y='.85em' font-size='380' x='56'>📚</text></svg>",
+        src: "logo.jpeg",
         sizes: "512x512",
-        type: "image/svg+xml",
+        type: "image/jpeg",
         purpose: "any maskable"
       }
     ],
@@ -1615,10 +1615,10 @@ async function renderListaAsistencia() {
       <div class="student-grade">${e.grado} — Sección ${e.seccion}</div>
       <div style="margin-top:8px;">${badge}</div>
       <div style="display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;justify-content:center;">
-        ${pres
+        ${presSet.has(e.id)
           ? `<button class="btn btn-ghost btn-sm" onclick="desmarcarAsistencia('${e.id}','${e.nombre.replace(/'/g,"\\'")}')">↩ Desmarcar</button>`
-          : ausen
-            ? `<button class="btn btn-success btn-sm" onclick="desmarcarAsistencia('${e.id}','${e.nombre.replace(/'/g,"\\'")}')">↩ Cambiar</button>`
+          : ausenteSet.has(e.id)
+            ? `<button class="btn btn-success btn-sm" onclick="abrirLlegadaJustif('${e.id}','${e.nombre.replace(/'/g,"\\'")}')">📄 Justificar llegada</button>`
             : `<button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">✅ Presente</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌ Ausente</button>`
         }
       </div>
