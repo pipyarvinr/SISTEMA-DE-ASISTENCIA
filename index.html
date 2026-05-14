@@ -1445,8 +1445,8 @@ async function descargarQR(id) {
   card.width=W; card.height=H;
   const ctx = card.getContext('2d');
   ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,W,H);
-  ctx.fillStyle='#0f3d22'; ctx.fillRect(0,0,W,80);
-  ctx.fillStyle='#2ecc71'; ctx.fillRect(0,80,W,6);
+  ctx.fillStyle='#b00008'; ctx.fillRect(0,0,W,80);
+  ctx.fillStyle='#ff2222'; ctx.fillRect(0,80,W,6);
   ctx.fillStyle='#ffffff'; ctx.font='bold 13px Arial'; ctx.textAlign='center';
   ctx.fillText('IE N.° 0148', W/2, 22);
   ctx.font='9px Arial'; ctx.fillStyle='rgba(255,255,255,0.8)';
@@ -1456,18 +1456,18 @@ async function descargarQR(id) {
   ctx.font='10px Arial'; ctx.fillStyle='rgba(255,255,255,0.5)';
   ctx.fillText('Sistema AsistenciaQR — Firebase', W/2, 68);
   const qrSize=180, qrX=(W-qrSize)/2, qrY=100;
-  ctx.fillStyle='#f0f2f0'; ctx.beginPath(); ctx.roundRect(qrX-10,qrY-10,qrSize+20,qrSize+20,12); ctx.fill();
+  ctx.fillStyle='#f5f0f0'; ctx.beginPath(); ctx.roundRect(qrX-10,qrY-10,qrSize+20,qrSize+20,12); ctx.fill();
   ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.roundRect(qrX-6,qrY-6,qrSize+12,qrSize+12,8); ctx.fill();
   ctx.drawImage(qrCanvas,qrX,qrY,qrSize,qrSize);
-  ctx.strokeStyle='#d4ddd6'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(20,296); ctx.lineTo(W-20,296); ctx.stroke();
-  ctx.font='bold 10px monospace'; ctx.fillStyle='#9aaa9d'; ctx.textAlign='center';
+  ctx.strokeStyle='#f0d0d0'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(20,296); ctx.lineTo(W-20,296); ctx.stroke();
+  ctx.font='bold 10px monospace'; ctx.fillStyle='#aa8888'; ctx.textAlign='center';
   ctx.fillText('ID: '+id.substring(0,8), W/2, 313);
-  ctx.font='bold 18px Arial'; ctx.fillStyle='#1c2b1e';
+  ctx.font='bold 18px Arial'; ctx.fillStyle='#2c1010';
   let nombre=e.nombre; if(ctx.measureText(nombre).width>W-40) nombre=nombre.split(' ').slice(0,3).join(' ');
   ctx.fillText(nombre, W/2, 338);
-  ctx.font='bold 13px Arial'; ctx.fillStyle='#1a6b3a';
+  ctx.font='bold 13px Arial'; ctx.fillStyle='#b00008';
   ctx.fillText(e.grado+' Secundaria  ·  Sección '+e.seccion, W/2, 360);
-  ctx.fillStyle='#0f3d22'; ctx.fillRect(0,375,W,25);
+  ctx.fillStyle='#b00008'; ctx.fillRect(0,375,W,25);
   ctx.font='9px Arial'; ctx.fillStyle='rgba(255,255,255,.5)';
   ctx.fillText('No compartir — Solo uso interno del colegio', W/2, 389);
   const a = document.createElement('a');
@@ -1488,11 +1488,22 @@ function _generarQRDataURL(texto, size) {
       // QRCode es síncrono para canvas
       const canvas = tmp.querySelector('canvas');
       const img = tmp.querySelector('img');
-      if (canvas) { resolve(canvas.toDataURL('image/png')); }
-      else if (img) { img.onload = () => resolve(img.src); img.onerror = () => resolve(''); if (img.complete) resolve(img.src); }
-      else resolve('');
-    } catch(e) { resolve(''); }
-    finally { document.body.removeChild(tmp); }
+      if (canvas) {
+        const dataURL = canvas.toDataURL('image/png');
+        document.body.removeChild(tmp);
+        resolve(dataURL);
+      } else if (img) {
+        if (img.complete) {
+          document.body.removeChild(tmp); resolve(img.src);
+        } else {
+          img.onload  = () => { document.body.removeChild(tmp); resolve(img.src); };
+          img.onerror = () => { document.body.removeChild(tmp); resolve(''); };
+        }
+      } else {
+        document.body.removeChild(tmp);
+        resolve('');
+      }
+    } catch(e) { if (document.body.contains(tmp)) document.body.removeChild(tmp); resolve(''); }
   });
 }
 
@@ -1521,7 +1532,7 @@ async function imprimirQR() {
     const qrSrc = qrMap[e.id] || '';
     return `<div class="tarjeta"><div class="hdr"><div class="colegio">IE N.° 0148<br>MAESTRO V.R. HAYA DE LA TORRE</div><div class="sub">Tarjeta de Asistencia</div></div><div class="qr-wrap"><img src="${qrSrc}" width="130" height="130"></div><div class="sep"></div><div class="id-txt">ID: ${e.id.substring(0,8)}</div><div class="nombre">${e.nombre}</div><div class="grado">${e.grado} Sec. · Sección ${e.seccion}</div><div class="ftr">IE N.° 0148 — Uso interno</div></div>`;
   }).join('');
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;background:white;padding:10px;}.grid{display:flex;flex-wrap:wrap;gap:8px;}.tarjeta{width:200px;border-radius:12px;overflow:hidden;border:1px solid #d4ddd6;background:white;page-break-inside:avoid;}.hdr{background:#0f3d22;color:white;padding:10px;text-align:center;border-bottom:4px solid #2ecc71;}.colegio{font-size:7.5px;font-weight:bold;line-height:1.4;}.sub{font-size:8px;opacity:.7;margin-top:2px;}.qr-wrap{padding:12px;text-align:center;background:#f8f9f8;}.sep{height:1px;background:#e0e6e1;margin:0 12px;}.id-txt{font-size:9px;color:#9aaa9d;text-align:center;padding:6px 0 2px;font-family:monospace;}.nombre{font-size:12px;font-weight:bold;text-align:center;padding:2px 8px;color:#1c2b1e;}.grado{font-size:10px;font-weight:bold;color:#1a6b3a;text-align:center;padding:2px 0 8px;}.ftr{background:#0f3d22;color:rgba(255,255,255,.4);font-size:7px;text-align:center;padding:5px;}@media print{body{padding:0;}}</style></head><body><div class="grid">${rows}</div>
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:Arial,sans-serif;background:white;padding:10px;}.grid{display:flex;flex-wrap:wrap;gap:8px;}.tarjeta{width:200px;border-radius:12px;overflow:hidden;border:1px solid #d4ddd6;background:white;page-break-inside:avoid;}.hdr{background:#b00008;color:white;padding:10px;text-align:center;border-bottom:4px solid #ff2222;}.colegio{font-size:7.5px;font-weight:bold;line-height:1.4;}.sub{font-size:8px;opacity:.7;margin-top:2px;}.qr-wrap{padding:12px;text-align:center;background:#fff5f5;}.sep{height:1px;background:#f0d0d0;margin:0 12px;}.id-txt{font-size:9px;color:#aa8888;text-align:center;padding:6px 0 2px;font-family:monospace;}.nombre{font-size:12px;font-weight:bold;text-align:center;padding:2px 8px;color:#2c1010;}.grado{font-size:10px;font-weight:bold;color:#b00008;text-align:center;padding:2px 0 8px;}.ftr{background:#b00008;color:rgba(255,255,255,.4);font-size:7px;text-align:center;padding:5px;}@media print{body{padding:0;}}</style></head><body><div class="grid">${rows}</div>
 </body></html>`;
   const w=window.open('','_blank');
   if (!w) { notif('❌ Bloqueo de ventana emergente — permite pop-ups','error'); return; }
@@ -2002,7 +2013,7 @@ async function actualizarStats() {
     }
     const asist = _asistenciaHoyCache?.length ? _asistenciaHoyCache : await fsQuery('asistencia',FB.where('fecha','==',getFecha()));
     if (!_asistenciaHoyCache?.length) _asistenciaHoyCache = asist;
-    const presSet=new Set(asist.filter(a=>a.estado!=='ausente'||a.estado==='justificado').map(a=>a.estudianteId));
+    const presSet=new Set(asist.filter(a=>a.estado==='puntual'||a.estado==='tardanza'||a.estado==='justificado').map(a=>a.estudianteId));
     const justifs = _justificacionesCache?.length ? _justificacionesCache : await fsGetAll('justificaciones');
     if (!_justificacionesCache?.length) _justificacionesCache = justifs;
     const pendientes=justifs.filter(j=>j.estado==='pendiente'||j.estado==='alerta').length;
@@ -2105,15 +2116,15 @@ async function exportarExcel() {
     const ids=new Set(g.estudiantes.map(e=>e.id));
     const asistGrupo=asistencias.filter(a=>ids.has(a.estudianteId)&&filtrarFecha(a.fecha));
     const fechasMostrar=[...new Set(asistGrupo.map(a=>a.fecha))].sort().slice(-5);
-    html+=`<h3>📋 ${g.grado} — Sección ${g.seccion}</h3><table><thead><tr><th>#</th><th>Apellidos y Nombres</th><th>DNI Apod.</th>`;
+    html+=`<h3>📋 ${g.grado} — Sección ${g.seccion}</h3><table><thead><tr><th>#</th><th>Apellidos y Nombres</th>`;
     fechasMostrar.forEach(f=>{html+=`<th>${f}</th>`;});
-    html+=`<th>Hoy</th><th>Justificación</th></tr></thead><tbody>`;
+    html+=`<th>Justificación</th></tr></thead><tbody>`;
     g.estudiantes.sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach((e,i)=>{
-      const regHoy=asistencias.find(a=>a.estudianteId===e.id&&a.fecha===fecha);const estHoy=regHoy?.estado;const clsHoy=estHoy==='puntual'?'pres':estHoy==='tardanza'?'tard':estHoy==='ausente'?'aus':estHoy==='justificado'?'just':'aus';const lblHoy=estHoy==='puntual'?'✅ Puntual':estHoy==='tardanza'?'⏰ Tardanza':estHoy==='ausente'?'❌ Ausente':estHoy==='justificado'?'📄 Justificado':'❌';
-      const justHoy=justifs.find(j=>j.estudianteId===e.id&&j.fecha===fecha);
-      html+=`<tr><td>${i+1}</td><td>${e.nombre}</td><td>${e.dniPadre||'—'}</td>`;
+      const justsRango=fechasMostrar.map(f=>justifs.find(j=>j.estudianteId===e.id&&j.fecha===f)).filter(Boolean);
+      const justTexto=justsRango.length?justsRango.map(j=>`${j.fecha}: ${j.motivo}`).join(' / '):'—';
+      html+=`<tr><td>${i+1}</td><td>${e.nombre}</td>`;
       fechasMostrar.forEach(f=>{const r=asistencias.find(a=>a.estudianteId===e.id&&a.fecha===f);const est=r?.estado;const cls=est==='puntual'?'pres':est==='tardanza'?'tard':est==='ausente'?'aus':est==='justificado'?'just':'aus';const lbl=est==='puntual'?'✅ Puntual':est==='tardanza'?'⏰ Tardanza':est==='ausente'?'❌ Ausente':est==='justificado'?'📄 Justificado':'❌';html+=`<td class="${cls}">${lbl}</td>`;});
-      html+=`<td class="${clsHoy}">${lblHoy}</td><td>${justHoy?justHoy.motivo:'—'}</td></tr>`;
+      html+=`<td>${justTexto}</td></tr>`;
     });
     html+=`</tbody></table>`;
   }
@@ -2131,7 +2142,7 @@ async function exportarPDF() {
   const fecha=getFecha();
   const asistencias=await fsQuery('asistencia',FB.where('fecha','==',fecha));
   const presSet=new Set(asistencias.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
-  const html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px;}h1{font-size:16px;color:#1a6b3a;}table{width:100%;border-collapse:collapse;margin-top:10px;}th{background:#1a6b3a;color:white;padding:8px;font-size:11px;}td{padding:7px 8px;border-bottom:1px solid #ddd;}.pres{background:#fff0f0;}.aus{background:#ffe8e8;}</style></head><body><h1>📚 IE N.° 0148 — Control de Asistencia — ${fecha}</h1><table><thead><tr><th>#</th><th>Estudiante</th><th>Grado</th><th>Sección</th><th>Estado</th><th>Firma</th></tr></thead><tbody>${estudiantes.map((e,i)=>`<tr class="${presSet.has(e.id)?'pres':'aus'}"><td>${i+1}</td><td>${e.nombre}</td><td>${e.grado}</td><td>${e.seccion}</td><td>${presSet.has(e.id)?'✅ Presente':'❌ Ausente'}</td><td style="width:120px;border-bottom:1px solid #999;">&nbsp;</td></tr>`).join('')}</tbody></table></body></html>`;
+  const html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px;}h1{font-size:16px;color:#b00008;}table{width:100%;border-collapse:collapse;margin-top:10px;}th{background:#b00008;color:white;padding:8px;font-size:11px;}td{padding:7px 8px;border-bottom:1px solid #ddd;}.pres{background:#fff0f0;}.aus{background:#ffe8e8;}</style></head><body><h1>📚 IE N.° 0148 — Control de Asistencia — ${fecha}</h1><table><thead><tr><th>#</th><th>Estudiante</th><th>Grado</th><th>Sección</th><th>Estado</th><th>Firma</th></tr></thead><tbody>${estudiantes.map((e,i)=>`<tr class="${presSet.has(e.id)?'pres':'aus'}"><td>${i+1}</td><td>${e.nombre}</td><td>${e.grado}</td><td>${e.seccion}</td><td>${presSet.has(e.id)?'✅ Presente':'❌ Ausente'}</td><td style="width:120px;border-bottom:1px solid #999;">&nbsp;</td></tr>`).join('')}</tbody></table></body></html>`;
   // BUG #5 FIX: proteger contra bloqueador de ventanas emergentes
   const w=window.open('','_blank');
   if(!w){notif('❌ Ventana emergente bloqueada. Permite pop-ups en tu navegador para exportar el PDF.','error');return;}
@@ -2283,7 +2294,6 @@ async function iniciarCamara() {
     const v=document.getElementById('scannerVideo');
     v.srcObject=scannerStream;
     await new Promise(r=>{v.onloadedmetadata=r;v.play().catch(()=>{});setTimeout(r,3000);});
-    await v.play().catch(()=>{});
     scannerCanvas=document.createElement('canvas');
     scannerCtx=scannerCanvas.getContext('2d',{willReadFrequently:true});
     document.getElementById('scanStatus').textContent='🟢 Apunta al código QR del estudiante';
