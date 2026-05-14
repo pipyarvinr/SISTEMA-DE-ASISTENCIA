@@ -1647,8 +1647,18 @@ async function cargarTablaAsistencia() {
     const rowCls=est==='ausente'?'row-ausente':est==='tardanza'?'row-tardanza':'row-presente';
     const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':est==='justificado'?'<span class="badge badge-blue">📄 Justificado</span>':'<span class="badge badge-green">✅ Presente</span>';
     const btnJustif=(est==='ausente'||est==='tardanza')&&['admin','auxiliar','tutor'].includes(sesion?.rol)?`<button class="btn btn-ghost btn-sm" style="margin-left:6px;font-size:10px;" onclick="abrirLlegadaJustif('${a.estudianteId}','${(a.nombre||'').replace(/'/g,"\\'")}')">📄 Justif.</button>`:'';
-    return `<tr class="${rowCls}"><td>${a.nombre||a.estudianteId}</td><td>${a.grado||'—'}</td><td>${a.seccion||'—'}</td><td>${a.hora}</td><td>${badge}${btnJustif}</td></tr>`;
+    const btnEliminar=sesion?.rol==='admin'?`<button class="btn btn-danger btn-sm" style="margin-left:6px;font-size:10px;" onclick="eliminarRegistroHoy('${a.id}','${(a.nombre||'').replace(/'/g,"\\'")}')">🗑</button>`:'';
+    return `<tr class="${rowCls}"><td>${a.nombre||a.estudianteId}</td><td>${a.grado||'—'}</td><td>${a.seccion||'—'}</td><td>${a.hora}</td><td>${badge}${btnJustif}${btnEliminar}</td></tr>`;
   }).join('');
+}
+
+async function eliminarRegistroHoy(registroId, nombre){
+  if(!confirm(`¿Eliminar el registro de hoy de "${nombre}"?\nPodrá ser escaneado nuevamente.`)) return;
+  try {
+    await fsDelete('asistencia', registroId);
+    notif(`🗑 Registro eliminado: ${nombre}`,'info');
+    cargarTablaAsistencia(); actualizarStats();
+  } catch(e){ notif('❌ Error al eliminar registro','error'); }
 }
 
 let _llegadaJustifEstId=null;
