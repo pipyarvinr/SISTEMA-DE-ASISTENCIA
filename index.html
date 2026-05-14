@@ -320,7 +320,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--gris-bg);min-height:100vh
 
 /* ── BADGES ── */
 .badge{display:inline-block;padding:3px 9px;border-radius:99px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:5px;}
-.badge-green{background:#e8000d;color:white;}
+.badge-green{background:#1a6b3a;color:white;}
 .badge-red{background:var(--rojo);color:white;}
 .badge-amber{background:#f39c12;color:white;}
 .badge-blue{background:var(--azul);color:white;}
@@ -1670,7 +1670,7 @@ async function confirmarLlegadaJustif(){
     const r=await fsQuery('asistencia',FB.where('estudianteId','==',_llegadaJustifEstId),FB.where('fecha','==',fecha));
     if(!r.length){notif('❌ No se encontró registro de asistencia','error');return;}
     // Actualizar estado a justificado
-    await FB.updateDoc(FB.doc(FB.db,'asistencia',r[0].id),{estado:'justificado',motivoJustif:motivo,observacionJustif:observacion||'',justificadoPor:sesion?.nombre||'',horaJustif:hora});
+    await fsUpdate('asistencia',r[0].id,{estado:'justificado',motivoJustif:motivo,observacionJustif:observacion||'',justificadoPor:sesion?.nombre||'',horaJustif:hora});
     document.getElementById('modalLlegadaJustif').classList.remove('open');
     notif(`📄 Llegada justificada registrada correctamente`,'success');
     cargarTablaAsistencia(); actualizarStats();
@@ -1690,7 +1690,7 @@ async function buscarPorNombre() {
     const est=estadoMap[e.id];
     const registrado=!!est;
     const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
-    const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':null;
+    const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':est==='justificado'?'<span class="badge badge-blue">📄 Justificado</span>':null;
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;margin-bottom:5px;background:${registrado?'#fff0f0':'var(--gris-bg)'};border:1px solid ${registrado?'#a9dfbf':'var(--borde)'};">
       <div><div style="font-size:12px;font-weight:700;">${e.nombre}</div><div style="font-size:10px;color:var(--texto-suave);">${e.grado} — Sección ${e.seccion}</div></div>
       ${badge ? badge : `<div style="display:flex;gap:4px;"><button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">✅</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌</button></div>`}
@@ -1712,7 +1712,7 @@ async function buscarPorDNI() {
     const est=estadoMapDNI[e.id];
     const registrado=!!est;
     const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
-    const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':null;
+    const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':est==='justificado'?'<span class="badge badge-blue">📄 Justificado</span>':null;
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 11px;border-radius:9px;margin-bottom:6px;background:${registrado?'#fff0f0':'var(--gris-bg)'};border:1.5px solid ${registrado?'#a9dfbf':'var(--borde)'};">
       <div><div style="font-size:13px;font-weight:700;">${e.nombre}</div><div style="font-size:11px;color:var(--texto-suave);">${e.grado} — Sección ${e.seccion}</div></div>
       ${badge ? badge : `<button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">Registrar</button>`}
@@ -1992,7 +1992,7 @@ async function actualizarStats() {
     }
     const asist = _asistenciaHoyCache?.length ? _asistenciaHoyCache : await fsQuery('asistencia',FB.where('fecha','==',getFecha()));
     if (!_asistenciaHoyCache?.length) _asistenciaHoyCache = asist;
-    const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
+    const presSet=new Set(asist.filter(a=>a.estado!=='ausente'||a.estado==='justificado').map(a=>a.estudianteId));
     const justifs = _justificacionesCache?.length ? _justificacionesCache : await fsGetAll('justificaciones');
     if (!_justificacionesCache?.length) _justificacionesCache = justifs;
     const pendientes=justifs.filter(j=>j.estado==='pendiente'||j.estado==='alerta').length;
