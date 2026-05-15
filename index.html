@@ -2117,7 +2117,7 @@ async function exportarExcel() {
     const asistGrupo=asistencias.filter(a=>ids.has(a.estudianteId)&&filtrarFecha(a.fecha));
     const fechasMostrar=[...new Set(asistGrupo.map(a=>a.fecha))].sort().slice(-5);
     html+=`<h3>📋 ${g.grado} — Sección ${g.seccion}</h3><table><thead><tr><th>#</th><th>Apellidos y Nombres</th>`;
-    fechasMostrar.forEach(f=>{html+=`<th>${f}</th>`;});
+    fechasMostrar.forEach(f=>{const partes=f.split('/');const corta=partes.length>=2?partes[0]+'/'+partes[1]:f;html+=`<th>${corta}</th>`;});
     html+=`<th>Justificación</th></tr></thead><tbody>`;
     g.estudiantes.sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach((e,i)=>{
       const justsRango=fechasMostrar.map(f=>justifs.find(j=>j.estudianteId===e.id&&j.fecha===f)).filter(Boolean);
