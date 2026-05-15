@@ -1619,7 +1619,7 @@ async function renderListaAsistencia() {
     const just=justifSet.has(e.id);
     const est=regHoy?.estado;
     const cls=est==='puntual'?'presente':est==='tardanza'?'tardanza':est==='ausente'?'ausente':just?'justificado':'';
-    const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':est==='presente'?'<span class="badge badge-green">✅ Presente</span>':just?'<span class="badge badge-blue">📄 Justificado</span>':'<span class="badge" style="background:#f0f0f0;color:#888;">⏳ Sin registro</span>';
+    const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':est==='justificado'?'<span class="badge badge-blue">📄 Justificado</span>':est==='presente'?'<span class="badge badge-green">✅ Presente</span>':just?'<span class="badge badge-blue">📄 Justificado</span>':'<span class="badge" style="background:#f0f0f0;color:#888;">⏳ Sin registro</span>';
     const qrStr = JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
     return `<div class="student-card ${cls}">
       <div class="student-name">${e.nombre}</div>
@@ -2110,21 +2110,30 @@ async function exportarExcel() {
     const [ga,sa]=a.split('|'),[gb,sb]=b.split('|');
     return (gradoOrden.indexOf(ga)-gradoOrden.indexOf(gb))||secOrden.indexOf(sa)-secOrden.indexOf(sb);
   });
-  let html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:11px;margin:16px;}h1{font-size:15px;color:#b00008;}h3{font-size:13px;color:#b00008;margin:22px 0 6px;border-bottom:2px solid #e8000d;padding-bottom:4px;}table{width:100%;table-layout:fixed;border-collapse:collapse;margin-bottom:8px;}th{background:#b00008;color:white;padding:6px 8px;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}td{padding:5px 8px;border-bottom:1px solid #eee;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}th:nth-child(1),td:nth-child(1){width:4%;}th:nth-child(2),td:nth-child(2){width:28%;}th:last-child,td:last-child{width:22%;white-space:normal;}.pres{color:#1a6b3a;font-weight:700;}.aus{color:#e8000d;font-weight:700;}.tard{color:#e67e22;font-weight:700;}.just{color:#1a5276;font-weight:700;}@media print{body{margin:6px;}}</style></head><body><h1>📚 IE N.° 0148 — Reporte de Asistencia</h1>`;
+  const fmtCorta=f=>{const p=f.split('/');return p.length>=2?p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0'):f;};
+  const sortFechas=arr=>[...arr].sort((a,b)=>{const pa=a.split('/'),pb=b.split('/');return new Date(+pa[2],+pa[1]-1,+pa[0])-new Date(+pb[2],+pb[1]-1,+pb[0]);});
+  let html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:11px;margin:16px;}h1{font-size:15px;color:#b00008;}h3{font-size:13px;color:#b00008;margin:22px 0 6px;border-bottom:2px solid #e8000d;padding-bottom:4px;}table{border-collapse:collapse;margin-bottom:16px;font-size:10px;}th{background:#b00008;color:white;padding:6px 8px;text-align:center;white-space:nowrap;border:1px solid #900;}td{padding:5px 8px;border:1px solid #ddd;vertical-align:top;}td:nth-child(1){text-align:center;}td:nth-child(2){white-space:nowrap;min-width:160px;}.fc{text-align:center;min-width:64px;}.pres{color:#1a6b3a;font-weight:700;}.aus{color:#e8000d;font-weight:700;}.tard{color:#e67e22;font-weight:700;}.just{color:#1a5276;font-weight:700;}.justif-sub{font-size:9px;color:#555;margin-top:2px;}@media print{body{margin:6px;}}</style></head><body><h1>📚 IE N.° 0148 — Reporte de Asistencia</h1>`;
   for(const key of claves){
     const g=grupos[key];
     const ids=new Set(g.estudiantes.map(e=>e.id));
     const asistGrupo=asistencias.filter(a=>ids.has(a.estudianteId)&&filtrarFecha(a.fecha));
-    const fechasMostrar=[...new Set(asistGrupo.map(a=>a.fecha))].sort().slice(-5);
+    const fechasMostrar=sortFechas([...new Set(asistGrupo.map(a=>a.fecha))]);
     html+=`<h3>📋 ${g.grado} — Sección ${g.seccion}</h3><table><thead><tr><th>#</th><th>Apellidos y Nombres</th>`;
-    fechasMostrar.forEach(f=>{const partes=f.split('/');const corta=partes.length>=2?partes[0]+'/'+partes[1]:f;html+=`<th>${corta}</th>`;});
-    html+=`<th>Justificación</th></tr></thead><tbody>`;
+    fechasMostrar.forEach(f=>{html+=`<th class="fc">${fmtCorta(f)}</th>`;});
+    html+=`<th>Justificaciones</th></tr></thead><tbody>`;
     g.estudiantes.sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach((e,i)=>{
-      const justsRango=fechasMostrar.map(f=>justifs.find(j=>j.estudianteId===e.id&&j.fecha===f)).filter(Boolean);
-      const justTexto=justsRango.length?justsRango.map(j=>`${j.fecha}: ${j.motivo}`).join(' / '):'—';
       html+=`<tr><td>${i+1}</td><td>${e.nombre}</td>`;
-      fechasMostrar.forEach(f=>{const r=asistencias.find(a=>a.estudianteId===e.id&&a.fecha===f);const est=r?.estado;const cls=est==='puntual'?'pres':est==='tardanza'?'tard':est==='ausente'?'aus':est==='justificado'?'just':'aus';const lbl=est==='puntual'?'✅ Puntual':est==='tardanza'?'⏰ Tardanza':est==='ausente'?'❌ Ausente':est==='justificado'?'📄 Justificado':'❌';html+=`<td class="${cls}">${lbl}</td>`;});
-      html+=`<td>${justTexto}</td></tr>`;
+      const justsTexto=[];
+      fechasMostrar.forEach(f=>{
+        const r=asistencias.find(a=>a.estudianteId===e.id&&a.fecha===f);
+        const est=r?.estado;
+        const cls=est==='puntual'?'pres':est==='tardanza'?'tard':est==='ausente'?'aus':est==='justificado'?'just':'';
+        const lbl=est==='puntual'?'✅ Puntual':est==='tardanza'?'⏰ Tardanza':est==='ausente'?'❌ Ausente':est==='justificado'?'📄 Justif.':'—';
+        const jst=justifs.find(j=>j.estudianteId===e.id&&j.fecha===f);
+        if(jst) justsTexto.push(`${fmtCorta(f)}: ${jst.motivo}`);
+        html+=`<td class="fc ${cls}">${lbl}</td>`;
+      });
+      html+=`<td>${justsTexto.length?justsTexto.join('<br>'):'—'}</td></tr>`;
     });
     html+=`</tbody></table>`;
   }
@@ -2138,16 +2147,67 @@ async function exportarExcel() {
 }
 
 async function exportarPDF() {
-  const estudiantes=await fsGetAll('estudiantes');
-  const fecha=getFecha();
-  const asistencias=await fsQuery('asistencia',FB.where('fecha','==',fecha));
-  const presSet=new Set(asistencias.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
-  const html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:12px;margin:20px;}h1{font-size:16px;color:#b00008;}table{width:100%;border-collapse:collapse;margin-top:10px;}th{background:#b00008;color:white;padding:8px;font-size:11px;}td{padding:7px 8px;border-bottom:1px solid #ddd;}.pres{background:#fff0f0;}.aus{background:#ffe8e8;}</style></head><body><h1>📚 IE N.° 0148 — Control de Asistencia — ${fecha}</h1><table><thead><tr><th>#</th><th>Estudiante</th><th>Grado</th><th>Sección</th><th>Estado</th><th>Firma</th></tr></thead><tbody>${estudiantes.map((e,i)=>`<tr class="${presSet.has(e.id)?'pres':'aus'}"><td>${i+1}</td><td>${e.nombre}</td><td>${e.grado}</td><td>${e.seccion}</td><td>${presSet.has(e.id)?'✅ Presente':'❌ Ausente'}</td><td style="width:120px;border-bottom:1px solid #999;">&nbsp;</td></tr>`).join('')}</tbody></table></body></html>`;
-  // BUG #5 FIX: proteger contra bloqueador de ventanas emergentes
+  const grado=document.getElementById('rGrado')?.value||'';
+  const seccion=document.getElementById('rSeccion')?.value||'';
+  const fi=document.getElementById('rFechaInicio')?.value;
+  const ff=document.getElementById('rFechaFin')?.value;
+  let estudiantes=await fsGetAll('estudiantes');
+  if(grado) estudiantes=estudiantes.filter(e=>e.grado===grado);
+  if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
+  const asistencias=await fsGetAll('asistencia');
+  const justifs=await fsGetAll('justificaciones');
+  const filtrarFecha=(f)=>{
+    if(!fi&&!ff) return true;
+    const p=f.split('/'); if(p.length!==3) return true;
+    const d=new Date(p[2],p[1]-1,p[0]);
+    if(fi&&d<new Date(fi)) return false;
+    if(ff&&d>new Date(ff+'T23:59:59')) return false;
+    return true;
+  };
+  const grupos={};
+  for(const e of estudiantes){
+    const key=e.grado+'|'+e.seccion;
+    if(!grupos[key]) grupos[key]={grado:e.grado,seccion:e.seccion,estudiantes:[]};
+    grupos[key].estudiantes.push(e);
+  }
+  const gradoOrden=['1ro','2do','3ro','4to','5to'], secOrden=['A','B','C','D','E'];
+  const claves=Object.keys(grupos).sort((a,b)=>{
+    const [ga,sa]=a.split('|'),[gb,sb]=b.split('|');
+    return (gradoOrden.indexOf(ga)-gradoOrden.indexOf(gb))||secOrden.indexOf(sa)-secOrden.indexOf(sb);
+  });
+  const fmtCorta=f=>{const p=f.split('/');return p.length>=2?p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0'):f;};
+  const sortFechas=arr=>[...arr].sort((a,b)=>{const pa=a.split('/'),pb=b.split('/');return new Date(+pa[2],+pa[1]-1,+pa[0])-new Date(+pb[2],+pb[1]-1,+pb[0]);});
+  let html=`<html><head><meta charset="UTF-8"><style>body{font-family:Arial,sans-serif;font-size:11px;margin:16px;}h1{font-size:15px;color:#b00008;}h3{font-size:13px;color:#b00008;margin:22px 0 6px;border-bottom:2px solid #e8000d;padding-bottom:4px;}table{border-collapse:collapse;margin-bottom:16px;font-size:10px;}th{background:#b00008;color:white;padding:6px 8px;text-align:center;white-space:nowrap;border:1px solid #900;}td{padding:5px 8px;border:1px solid #ddd;vertical-align:top;}td:nth-child(1){text-align:center;}td:nth-child(2){white-space:nowrap;min-width:160px;}.fc{text-align:center;min-width:64px;}.pres{color:#1a6b3a;font-weight:700;}.aus{color:#e8000d;font-weight:700;}.tard{color:#e67e22;font-weight:700;}.just{color:#1a5276;font-weight:700;}@media print{body{margin:6px;}}</style></head><body><h1>📚 IE N.° 0148 — Reporte de Asistencia</h1>`;
+  for(const key of claves){
+    const g=grupos[key];
+    const ids=new Set(g.estudiantes.map(e=>e.id));
+    const asistGrupo=asistencias.filter(a=>ids.has(a.estudianteId)&&filtrarFecha(a.fecha));
+    const fechasMostrar=sortFechas([...new Set(asistGrupo.map(a=>a.fecha))]);
+    html+=`<h3>📋 ${g.grado} — Sección ${g.seccion}</h3><table><thead><tr><th>#</th><th>Apellidos y Nombres</th>`;
+    fechasMostrar.forEach(f=>{html+=`<th class="fc">${fmtCorta(f)}</th>`;});
+    html+=`<th>Justificaciones</th></tr></thead><tbody>`;
+    g.estudiantes.sort((a,b)=>a.nombre.localeCompare(b.nombre)).forEach((e,i)=>{
+      html+=`<tr><td>${i+1}</td><td>${e.nombre}</td>`;
+      const justsTexto=[];
+      fechasMostrar.forEach(f=>{
+        const r=asistencias.find(a=>a.estudianteId===e.id&&a.fecha===f);
+        const est=r?.estado;
+        const cls=est==='puntual'?'pres':est==='tardanza'?'tard':est==='ausente'?'aus':est==='justificado'?'just':'';
+        const lbl=est==='puntual'?'✅ Puntual':est==='tardanza'?'⏰ Tardanza':est==='ausente'?'❌ Ausente':est==='justificado'?'📄 Justif.':'—';
+        const jst=justifs.find(j=>j.estudianteId===e.id&&j.fecha===f);
+        if(jst) justsTexto.push(`${fmtCorta(f)}: ${jst.motivo}`);
+        html+=`<td class="fc ${cls}">${lbl}</td>`;
+      });
+      html+=`<td>${justsTexto.length?justsTexto.join('<br>'):'—'}</td></tr>`;
+    });
+    html+=`</tbody></table>`;
+  }
+  html+=`</body></html>`;
   const w=window.open('','_blank');
   if(!w){notif('❌ Ventana emergente bloqueada. Permite pop-ups en tu navegador para exportar el PDF.','error');return;}
   w.document.write(html); w.document.close();
-  setTimeout(()=>w.print(),500);
+  setTimeout(()=>w.print(),700);
+  notif('📥 PDF listo','success');
 }
 
 async function renderListaUsuarios() {
