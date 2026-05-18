@@ -38,13 +38,13 @@
         src: "logo.jpeg",
         sizes: "192x192",
         type: "image/jpeg",
-        purpose: "any maskable"
+        purpose: "any"
       },
       {
         src: "logo.jpeg",
         sizes: "512x512",
         type: "image/jpeg",
-        purpose: "any maskable"
+        purpose: "maskable"
       }
     ],
     categories: ["education", "productivity"],
@@ -86,8 +86,7 @@ if ('serviceWorker' in navigator) {
       const url = e.request.url;
       if (url.includes('firebasejs') || url.includes('googleapis') ||
           url.includes('gstatic') || url.includes('firebaseio') ||
-          url.includes('googleapis') || url.includes('jsdelivr') ||
-          url.includes('fonts.')) {
+          url.includes('jsdelivr') || url.includes('fonts.')) {
         e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
         return;
       }
@@ -124,17 +123,19 @@ if ('serviceWorker' in navigator) {
 <!-- ══ BOTÓN "INSTALAR APP" ══ -->
 <script>
 let _deferredInstallPrompt = null;
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  _deferredInstallPrompt = e;
-  const btn = document.getElementById('btnInstalarApp');
-  if (btn) btn.style.display = 'flex';
-});
-window.addEventListener('appinstalled', () => {
-  _deferredInstallPrompt = null;
-  const btn = document.getElementById('btnInstalarApp');
-  if (btn) btn.style.display = 'none';
-  console.log('✅ App instalada correctamente');
+window.addEventListener('DOMContentLoaded', () => {
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    _deferredInstallPrompt = e;
+    const btn = document.getElementById('btnInstalarApp');
+    if (btn) btn.style.display = 'flex';
+  });
+  window.addEventListener('appinstalled', () => {
+    _deferredInstallPrompt = null;
+    const btn = document.getElementById('btnInstalarApp');
+    if (btn) btn.style.display = 'none';
+    console.log('✅ App instalada correctamente');
+  });
 });
 function instalarApp() {
   if (!_deferredInstallPrompt) return;
@@ -1583,6 +1584,7 @@ async function registrarAsistencia(qrData) {
     await fsAdd('asistencia',{ estudianteId, nombre, grado, seccion, fecha, hora, estado, registradoPor: sesion?.uid||'padre' });
     const estadoLabel = estado==='puntual'?'✅ Puntual':estado==='tardanza'?'⏰ Tardanza':'❌ Ausente';
     notif(`${estadoLabel} — ${nombre} — ${grado} "${seccion}" — ${hora}`,'success');
+    _asistenciaHoyCache = null; // forzar recarga de stats con dato fresco
     renderListaAsistencia(); cargarTablaAsistencia(); actualizarStats();
     return true;
   } catch(err) {
@@ -1771,15 +1773,36 @@ async function consultarPadre() {
 
 async function renderHijosInfo(hijos) {
   const fecha=getFecha();
+  // Cache por sesión: si el padre ya consultó hoy, no volver a Firebase
+  const cacheKey = 'padre_' + hijos.map(h=>h.id).join('_') + '_' + fecha;
+  const cached = sessionStorage.getItem(cacheKey);
   let presSet=new Set(), ausenteSet=new Set(), tardSet=new Map(), justifs=[];
-  for(const h of hijos) {
+  if (cached) {
     try {
-      const r=await fsQuery('asistencia',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha));
-      if(r.length){ if(r[0].estado==='ausente') ausenteSet.add(h.id); else if(r[0].estado==='tardanza') tardSet.set(h.id,r[0].hora||''); else presSet.add(h.id); }
-    } catch(e2){}
+      const parsed = JSON.parse(cached);
+      presSet   = new Set(parsed.pres);
+      ausenteSet= new Set(parsed.aus);
+      tardSet   = new Map(parsed.tard);
+      justifs   = parsed.justifs;
+    } catch(_) { sessionStorage.removeItem(cacheKey); }
   }
-  for(const h of hijos) {
-    try { const r=await fsQuery('justificaciones',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha)); justifs.push(...r); } catch(e2){}
+  if (!cached) {
+    for(const h of hijos) {
+      try {
+        const r=await fsQuery('asistencia',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha));
+        if(r.length){ if(r[0].estado==='ausente') ausenteSet.add(h.id); else if(r[0].estado==='tardanza') tardSet.set(h.id,r[0].hora||''); else presSet.add(h.id); }
+      } catch(e2){}
+    }
+    for(const h of hijos) {
+      try { const r=await fsQuery('justificaciones',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha)); justifs.push(...r); } catch(e2){}
+    }
+    // Guardar en cache del navegador (dura hasta que cierra la pestaña)
+    try {
+      sessionStorage.setItem(cacheKey, JSON.stringify({
+        pres: [...presSet], aus: [...ausenteSet],
+        tard: [...tardSet.entries()], justifs
+      }));
+    } catch(_) {}
   }
   const c=document.getElementById('padreHijosDiv');
   c.innerHTML=hijos.map(h=>{
@@ -1889,6 +1912,10 @@ async function enviarJustificacion() {
   else{notif('⏳ Justificación enviada — en espera de aprobación del tutor','success');}
   renderAlertasBadge();
   const hijos=await fsQuery('estudiantes',FB.where('dniPadre','==',e?.dniPadre||''));
+  // Limpiar cache del padre para que vea el nuevo estado de la justificacion
+  const fechaHoy=getFecha();
+  const ck='padre_'+hijos.map(h=>h.id).join('_')+'_'+fechaHoy;
+  sessionStorage.removeItem(ck);
   renderHijosInfo(hijos);
 }
 
@@ -2025,11 +2052,25 @@ async function actualizarStats() {
 }
 
 async function generarReporte() {
+  const fi=document.getElementById('rFechaInicio')?.value;
+  const ff=document.getElementById('rFechaFin')?.value;
+  // Protección: no permitir reportes sin fechas o mayor a 30 días
+  if (!fi || !ff) {
+    notif('⚠️ Debes seleccionar una fecha de inicio y fin','warning');
+    return;
+  }
+  const dias = (new Date(ff) - new Date(fi)) / (1000*60*60*24);
+  if (dias < 0) {
+    notif('❌ La fecha de inicio no puede ser mayor a la fecha fin','error');
+    return;
+  }
+  if (dias > 30) {
+    notif('⚠️ El reporte no puede superar 30 días para no saturar el sistema','warning');
+    return;
+  }
   let estudiantes=await fsGetAll('estudiantes');
   const grado=document.getElementById('rGrado')?.value;
   const seccion=document.getElementById('rSeccion')?.value;
-  const fi=document.getElementById('rFechaInicio')?.value;
-  const ff=document.getElementById('rFechaFin')?.value;
   // FIX-ROL-8: aplicar filtro de grados Y secciones asignadas al tutor en reportes
   if(sesion?.grados?.length) estudiantes=estudiantes.filter(e=>sesion.grados.includes(e.grado));
   if(sesion?.secciones?.length) estudiantes=estudiantes.filter(e=>sesion.secciones.includes(e.seccion));
@@ -2151,6 +2192,10 @@ async function exportarPDF() {
   const seccion=document.getElementById('rSeccion')?.value||'';
   const fi=document.getElementById('rFechaInicio')?.value;
   const ff=document.getElementById('rFechaFin')?.value;
+  if (!fi || !ff) { notif('⚠️ Selecciona un rango de fechas antes de exportar','warning'); return; }
+  const dias = (new Date(ff) - new Date(fi)) / (1000*60*60*24);
+  if (dias < 0) { notif('❌ La fecha de inicio no puede ser mayor a la fecha fin','error'); return; }
+  if (dias > 30) { notif('⚠️ El PDF no puede superar 30 días para no saturar el sistema','warning'); return; }
   let estudiantes=await fsGetAll('estudiantes');
   if(grado) estudiantes=estudiantes.filter(e=>e.grado===grado);
   if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
@@ -2388,7 +2433,7 @@ function tickScan() {
   if(code&&code.data){
     escaneando=false;
     const flash=document.createElement('div');
-    Object.assign(flash.style,{position:'absolute',inset:'0',background:'rgba(192,57,43,.5)',borderRadius:'12px',pointerEvents:'none',animation:'fadeOut .7s ease forwards'});
+    Object.assign(flash.style,{position:'absolute',inset:'0',background:'rgba(39,174,96,.5)',borderRadius:'12px',pointerEvents:'none',animation:'fadeOut .7s ease forwards'});
     document.getElementById('scannerView').appendChild(flash);
     registrarAsistencia(code.data).then(ok=>{
       if(ok) setTimeout(()=>cerrarScanner(),800);
@@ -2438,8 +2483,8 @@ async function procesarManual() {
     const pres=presSet.has(e.id);
     const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
     return `<div style="background:var(--gris-bg);border:1.5px solid var(--borde);border-radius:10px;padding:10px 12px;margin-top:8px;">
-      <div style="font-weight:700;font-size:13px;">${e.nombre}</div>
-      <div style="font-size:11px;color:var(--texto-suave);margin-bottom:8px;">${e.grado} — Sección ${e.seccion}</div>
+      <div style="font-weight:700;font-size:13px;">${e.nombre.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+      <div style="font-size:11px;color:var(--texto-suave);margin-bottom:8px;">${e.grado.replace(/</g,'&lt;')} — Sección ${e.seccion.replace(/</g,'&lt;')}</div>
       <div style="display:flex;gap:6px;">
         ${pres ? '<span class="badge badge-green">✅ Ya registrado</span>' : `<button class="btn btn-success btn-sm" onclick="registrarManualPresente('${qrStr}')">✅ Presente</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌ Ausente</button>`}
       </div>
