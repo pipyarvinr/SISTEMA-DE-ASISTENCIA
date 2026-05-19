@@ -1583,7 +1583,10 @@ async function cargarTablaAsistencia() {
     const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':est==='justificado'?'<span class="badge badge-blue">📄 Justificado</span>':'<span class="badge badge-green">✅ Presente</span>';
     const btnJustif=(est==='ausente'||est==='tardanza')&&['admin','auxiliar','tutor'].includes(sesion?.rol)?`<button class="btn btn-ghost btn-sm" style="margin-left:6px;font-size:10px;" onclick="abrirLlegadaJustif('${a.estudianteId}','${(a.nombre||'').replace(/'/g,"\\'")}')">📄 Justif.</button>`:'';
     const btnEliminar=sesion?.rol==='admin'?`<button class="btn btn-danger btn-sm" style="margin-left:6px;font-size:10px;" onclick="eliminarRegistroHoy('${a.id}','${(a.nombre||'').replace(/'/g,"\\'")}')">🗑</button>`:'';
-    return `<tr class="${rowCls}"><td>${a.nombre||a.estudianteId}</td><td>${a.grado||'—'}</td><td>${a.seccion||'—'}</td><td>${a.hora}</td><td>${badge}${btnJustif}${btnEliminar}</td></tr>`;
+    const tel=(_estudiantesCache.find(e=>e.id===a.estudianteId)||{}).telefono||'';
+    const msgWA=encodeURIComponent('⚠️ Estimado apoderado, su hijo/a '+(a.nombre||'')+' ('+(a.grado||'')+' "'+(a.seccion||'')+'") NO tiene registro de ingreso hoy '+(a.fecha||getFecha())+' — IE N.° 0148 Maestro Víctor Raúl Haya de la Torre.');
+    const btnWA=est==='ausente'&&tel&&['admin','auxiliar','tutor'].includes(sesion?.rol)?`<a href="https://wa.me/${tel}?text=${msgWA}" target="_blank" class="btn btn-ghost btn-sm" style="margin-left:6px;font-size:10px;background:#25D366;color:white;border:none;">📲 WA</a>`:'';
+    return `<tr class="${rowCls}"><td>${a.nombre||a.estudianteId}</td><td>${a.grado||'—'}</td><td>${a.seccion||'—'}</td><td>${a.hora}</td><td>${badge}${btnJustif}${btnWA}${btnEliminar}</td></tr>`;
   }).join('');
 }
 
@@ -1695,10 +1698,18 @@ async function consultarPadre() {
 
 async function renderHijosInfo(hijos) {
   const fecha=getFecha();
-  // Cache por sesión: si el padre ya consultó hoy, no volver a Firebase
-  const cacheKey = 'padre_' + hijos.map(h=>h.id).join('_') + '_' + fecha;
+  // Calcular fechas de las últimas 2 semanas
+  const hoy=new Date();
+  const diasSemana=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const ultimas2Semanas=[];
+  for(let i=13;i>=0;i--){
+    const d=new Date(hoy); d.setDate(hoy.getDate()-i);
+    if(d.getDay()===0||d.getDay()===6) continue; // solo días hábiles
+    ultimas2Semanas.push(d.toLocaleDateString('es-PE'));
+  }
+  const cacheKey = 'padre_' + hijos.map(h=>h.id).join('_') + '_semana_' + fecha;
   const cached = sessionStorage.getItem(cacheKey);
-  let presSet=new Set(), ausenteSet=new Set(), tardSet=new Map(), justifs=[];
+  let presSet=new Set(), ausenteSet=new Set(), tardSet=new Map(), justifs=[], asistSemana=[];
   if (cached) {
     try {
       const parsed = JSON.parse(cached);
@@ -1706,23 +1717,27 @@ async function renderHijosInfo(hijos) {
       ausenteSet= new Set(parsed.aus);
       tardSet   = new Map(parsed.tard);
       justifs   = parsed.justifs;
+      asistSemana = parsed.asistSemana||[];
     } catch(_) { sessionStorage.removeItem(cacheKey); }
   }
   if (!cached) {
     for(const h of hijos) {
       try {
-        const r=await fsQuery('asistencia',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha));
-        if(r.length){ if(r[0].estado==='ausente') ausenteSet.add(h.id); else if(r[0].estado==='tardanza') tardSet.set(h.id,r[0].hora||''); else presSet.add(h.id); }
+        // Una sola consulta por hijo trae las últimas 2 semanas
+        const r=await fsQuery('asistencia',FB.where('estudianteId','==',h.id));
+        const rFiltrado=r.filter(a=>ultimas2Semanas.includes(a.fecha));
+        asistSemana.push(...rFiltrado);
+        const hoy_reg=rFiltrado.find(a=>a.fecha===fecha);
+        if(hoy_reg){ if(hoy_reg.estado==='ausente') ausenteSet.add(h.id); else if(hoy_reg.estado==='tardanza') tardSet.set(h.id,hoy_reg.hora||''); else presSet.add(h.id); }
       } catch(e2){}
     }
     for(const h of hijos) {
       try { const r=await fsQuery('justificaciones',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha)); justifs.push(...r); } catch(e2){}
     }
-    // Guardar en cache del navegador (dura hasta que cierra la pestaña)
     try {
       sessionStorage.setItem(cacheKey, JSON.stringify({
         pres: [...presSet], aus: [...ausenteSet],
-        tard: [...tardSet.entries()], justifs
+        tard: [...tardSet.entries()], justifs, asistSemana
       }));
     } catch(_) {}
   }
@@ -1749,7 +1764,38 @@ async function renderHijosInfo(hijos) {
     }else{
       estadoHtml='<span class="badge" style="font-size:12px;padding:5px 14px;background:#f0f0f0;color:#888;">⏳ Sin registro aún</span>';
     }
-    return `<div class="hijo-card ${pres?'presente':tardeReg?'tardanza':ausenteReg?'ausente':''}"><div class="hijo-nombre">${h.nombre}</div><div class="hijo-grado">${h.grado} — Sección ${h.seccion}</div><div style="margin-top:10px;">${estadoHtml}</div>${botones}</div>`;
+    // Vista semanal — últimas 2 semanas
+    const asistH=asistSemana.filter(a=>a.estudianteId===h.id);
+    const asistMap={}; asistH.forEach(a=>{asistMap[a.fecha]=a.estado;});
+    let asist2=0,falt2=0,tard2=0;
+    const semanaHtml=ultimas2Semanas.map(f=>{
+      const d=new Date(f.split('/').reverse().join('-')+'T12:00:00');
+      const dia=diasSemana[d.getDay()];
+      const est=asistMap[f];
+      if(est&&est!=='ausente') asist2++; else if(est==='ausente') falt2++; if(est==='tardanza') tard2++;
+      const esHoy=f===fecha;
+      let color='#f0f0f0',txtColor='#888',icono='·';
+      if(est==='puntual'||est==='presente'){color='#d4edda';txtColor='#155724';icono='✓';}
+      else if(est==='tardanza'){color='#fef9ec';txtColor='#784212';icono='⏰';}
+      else if(est==='ausente'){color='#ffe8e8';txtColor='#b00008';icono='✗';}
+      return `<div style="text-align:center;flex:1;min-width:32px;"><div style="font-size:9px;color:var(--texto-suave);margin-bottom:3px;">${dia}</div><div style="background:${color};color:${txtColor};border-radius:6px;padding:4px 2px;font-size:11px;font-weight:700;border:${esHoy?'2px solid #e8000d':'1.5px solid transparent'};">${icono}</div></div>`;
+    }).join('');
+    const resumenHtml=`<div style="display:flex;gap:8px;margin-top:8px;font-size:11px;flex-wrap:wrap;">
+      <span style="background:#d4edda;color:#155724;padding:3px 8px;border-radius:99px;font-weight:700;">✓ ${asist2} asistencias</span>
+      ${falt2?`<span style="background:#ffe8e8;color:#b00008;padding:3px 8px;border-radius:99px;font-weight:700;">✗ ${falt2} faltas</span>`:''}
+      ${tard2?`<span style="background:#fef9ec;color:#784212;padding:3px 8px;border-radius:99px;font-weight:700;">⏰ ${tard2} tardanzas</span>`:''}
+    </div>`;
+    return `<div class="hijo-card ${pres?'presente':tardeReg?'tardanza':ausenteReg?'ausente':''}">
+      <div class="hijo-nombre">${h.nombre}</div>
+      <div class="hijo-grado">${h.grado} — Sección ${h.seccion}</div>
+      <div style="margin-top:10px;">${estadoHtml}</div>
+      ${botones}
+      <div style="margin-top:14px;border-top:1px solid var(--borde);padding-top:10px;">
+        <div style="font-size:10px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Últimas 2 semanas</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;">${semanaHtml}</div>
+        ${resumenHtml}
+      </div>
+    </div>`;
   }).join('');
 }
 
