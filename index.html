@@ -1835,10 +1835,70 @@ async function renderHijosInfo(hijos) {
         </div>
       </div>
     </div>`;
+    // — Mensaje de tranquilidad —
+    const nombreCorto=h.nombre.split(' ')[0];
+    let msgTranq='',bgTranq='',iconTranq='';
+    if(pres){
+      msgTranq=`${nombreCorto} está en el colegio. ${horaReg?'Llegó a las '+horaReg+'.':'Ingreso registrado hoy.'}`;
+      bgTranq='linear-gradient(135deg,#00897B,#00695C)';iconTranq='✅';
+    }else if(tardeReg){
+      msgTranq=`${nombreCorto} llegó tarde hoy${horaReg?' a las '+horaReg:''}.`;
+      bgTranq='linear-gradient(135deg,#FB8C00,#E65100)';iconTranq='⏰';
+    }else if(ausenteReg){
+      msgTranq=`${nombreCorto} no tiene registro hoy. Si salió de casa, comunícate con el colegio.`;
+      bgTranq='linear-gradient(135deg,#E53935,#B71C1C)';iconTranq='🚨';
+    }else{
+      msgTranq=`Aún es temprano. El registro de ${nombreCorto} se actualiza en tiempo real.`;
+      bgTranq='linear-gradient(135deg,#546E7A,#37474F)';iconTranq='⏳';
+    }
+    const tranqHtml=`<div style="background:${bgTranq};border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:12px;box-shadow:0 4px 14px rgba(0,0,0,.15);">
+      <div style="font-size:28px;line-height:1;">${iconTranq}</div>
+      <div style="font-size:13px;color:#fff;font-weight:600;line-height:1.4;">${msgTranq}</div>
+    </div>`;
+    // — Insignias automáticas —
+    const insignias=[];
+    if(asist2===5) insignias.push({i:'🏅',t:'Semana perfecta'});
+    if(asist2===5&&falt2===0&&tard2===0) insignias.push({i:'⚡',t:'Sin tardanzas'});
+    if(falt2===0&&tard2===0&&asist2>0) insignias.push({i:'🌟',t:'Impecable'});
+    if(pres&&!tardeReg) insignias.push({i:'🔥',t:'Puntual hoy'});
+    const insigniasHtml=insignias.length?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+      ${insignias.map(b=>`<div style="background:#fff;border:1.5px solid #eee;border-radius:99px;padding:4px 10px;display:flex;align-items:center;gap:4px;box-shadow:0 1px 4px rgba(0,0,0,.08);">
+        <span style="font-size:13px;">${b.i}</span>
+        <span style="font-size:11px;font-weight:700;color:#333;">${b.t}</span>
+      </div>`).join('')}
+    </div>`:'';
+    // — Frase motivacional (cambia cada día) —
+    const frases=[
+      `"El éxito es la suma de pequeños esfuerzos repetidos cada día."`,
+      `"Cada día que asiste, ${nombreCorto} construye su futuro."`,
+      `"La constancia es la clave del logro."`,
+      `"Asistir hoy es invertir en el mañana."`,
+      `"Los grandes logros empiezan con pequeños pasos diarios."`,
+      `"La disciplina de hoy es el orgullo de mañana."`,
+      `"Cada día en el colegio cuenta. ¡Gracias por el apoyo!"`,
+    ];
+    const fraseHoy=frases[new Date().getDay()%frases.length];
+    const fraseHtml=`<div style="background:#f8f9fa;border-left:3px solid #e8000d;border-radius:0 10px 10px 0;padding:10px 12px;margin-bottom:12px;">
+      <div style="font-size:11px;color:#555;font-style:italic;line-height:1.5;">${fraseHoy}</div>
+    </div>`;
+    // — Tarjeta compartible —
+    const nivelLogro=asist2===5&&tard2===0?'🏆 ¡Semana perfecta!':asist2>=4?'🥇 ¡Casi perfecta!':asist2>=3?'🥈 ¡Buena semana!':'';
+    const msgCompartir=nivelLogro?encodeURIComponent(`${nivelLogro}\n\n🌟 Mi hijo/a ${h.nombre} asistió ${asist2} de 5 días esta semana${tard2===0?' sin ninguna tardanza':''} 💪\n\n¡Orgulloso/a de su dedicación y responsabilidad!\n\n🏫 IE N.° 0148 Maestro Víctor Raúl Haya de la Torre`):'';
+    const compartirHtml=nivelLogro?`<div style="margin-bottom:12px;background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:14px;padding:12px 14px;text-align:center;">
+      <div style="font-size:16px;margin-bottom:4px;">${nivelLogro}</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.6);margin-bottom:10px;">${h.nombre} lo logró esta semana</div>
+      <a href="https://wa.me/?text=${msgCompartir}" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:#25D366;color:#fff;border-radius:99px;padding:7px 18px;font-size:12px;font-weight:700;text-decoration:none;">
+        📤 Compartir logro
+      </a>
+    </div>`:'';
     return `<div class="hijo-card ${pres?'presente':tardeReg?'tardanza':ausenteReg?'ausente':''}">
       <div class="hijo-nombre">${h.nombre}</div>
       <div class="hijo-grado">${h.grado} — Sección ${h.seccion}</div>
-      <div style="margin-top:10px;">${estadoHtml}</div>
+      <div style="margin-top:12px;">${tranqHtml}</div>
+      ${insigniasHtml}
+      ${fraseHtml}
+      ${compartirHtml}
+      <div style="margin-top:4px;">${estadoHtml}</div>
       ${botones}
       <div style="margin-top:14px;border-top:1px solid var(--borde);padding-top:12px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
