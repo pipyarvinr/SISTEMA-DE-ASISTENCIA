@@ -1698,13 +1698,14 @@ async function consultarPadre() {
 
 async function renderHijosInfo(hijos) {
   const fecha=getFecha();
-  // Calcular fechas de las últimas 2 semanas
+  // Calcular días de la semana actual Lun-Vie
   const hoy=new Date();
   const diasSemana=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const ultimas2Semanas=[];
-  for(let i=13;i>=0;i--){
-    const d=new Date(hoy); d.setDate(hoy.getDate()-i);
-    if(d.getDay()===0||d.getDay()===6) continue; // solo días hábiles
+  const lunesOffset=hoy.getDay()===0?-6:1-hoy.getDay();
+  for(let i=0;i<5;i++){
+    const d=new Date(hoy);
+    d.setDate(hoy.getDate()+lunesOffset+i);
     ultimas2Semanas.push(d.toLocaleDateString('es-PE'));
   }
   const cacheKey = 'padre_' + hijos.map(h=>h.id).join('_') + '_semana_' + fecha;
@@ -1764,35 +1765,84 @@ async function renderHijosInfo(hijos) {
     }else{
       estadoHtml='<span class="badge" style="font-size:12px;padding:5px 14px;background:#f0f0f0;color:#888;">⏳ Sin registro aún</span>';
     }
-    // Vista semanal — últimas 2 semanas
+    // Vista semanal — semana actual Lun-Vie
     const asistH=asistSemana.filter(a=>a.estudianteId===h.id);
     const asistMap={}; asistH.forEach(a=>{asistMap[a.fecha]=a.estado;});
     let asist2=0,falt2=0,tard2=0;
-    const semanaHtml=ultimas2Semanas.map(f=>{
-      const d=new Date(f.split('/').reverse().join('-')+'T12:00:00');
-      const dia=diasSemana[d.getDay()];
+    const diasLabel=['LUN','MAR','MIÉ','JUE','VIE'];
+    const semanaHtml=ultimas2Semanas.map((f,idx)=>{
+      const partes=f.split('/');
+      const d=new Date(parseInt(partes[2]),parseInt(partes[1])-1,parseInt(partes[0]),12,0,0);
+      const numDia=d.getDate();
       const est=asistMap[f];
+      const esFuturo=d>hoy&&f!==fecha;
       if(est&&est!=='ausente') asist2++; else if(est==='ausente') falt2++; if(est==='tardanza') tard2++;
       const esHoy=f===fecha;
-      let color='#f0f0f0',txtColor='#888',icono='·';
-      if(est==='puntual'||est==='presente'){color='#d4edda';txtColor='#155724';icono='✓';}
-      else if(est==='tardanza'){color='#fef9ec';txtColor='#784212';icono='⏰';}
-      else if(est==='ausente'){color='#ffe8e8';txtColor='#b00008';icono='✗';}
-      return `<div style="text-align:center;flex:1;min-width:32px;"><div style="font-size:9px;color:var(--texto-suave);margin-bottom:3px;">${dia}</div><div style="background:${color};color:${txtColor};border-radius:6px;padding:4px 2px;font-size:11px;font-weight:700;border:${esHoy?'2px solid #e8000d':'1.5px solid transparent'};">${icono}</div></div>`;
+      let bg='#f0f2f5',txtColor='#bbb',icono='',borderColor='transparent',sombra='';
+      if(esFuturo){bg='#f8f9fa';txtColor='#ccc';icono='';}
+      else if(est==='puntual'||est==='presente'){bg='#00C853';txtColor='#fff';icono='✓';sombra='0 4px 12px rgba(0,200,83,.4)';}
+      else if(est==='tardanza'){bg='#FF6D00';txtColor='#fff';icono='⏰';sombra='0 4px 12px rgba(255,109,0,.4)';}
+      else if(est==='ausente'){bg='#D50000';txtColor='#fff';icono='✗';sombra='0 4px 12px rgba(213,0,0,.4)';}
+      else{bg='#f0f2f5';txtColor='#bbb';icono='•';}
+      if(esHoy) borderColor='#e8000d';
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;">
+        <div style="font-size:9px;font-weight:700;color:${esHoy?'#e8000d':'#999'};letter-spacing:.5px;">${diasLabel[idx]}</div>
+        <div style="width:42px;height:42px;border-radius:12px;background:${bg};color:${txtColor};display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:${sombra};border:2px solid ${borderColor};transition:all .2s;">
+          <div style="font-size:14px;line-height:1;">${icono}</div>
+          <div style="font-size:10px;font-weight:700;line-height:1;margin-top:1px;color:${txtColor};">${numDia}</div>
+        </div>
+      </div>`;
     }).join('');
-    const resumenHtml=`<div style="display:flex;gap:8px;margin-top:8px;font-size:11px;flex-wrap:wrap;">
-      <span style="background:#d4edda;color:#155724;padding:3px 8px;border-radius:99px;font-weight:700;">✓ ${asist2} asistencias</span>
-      ${falt2?`<span style="background:#ffe8e8;color:#b00008;padding:3px 8px;border-radius:99px;font-weight:700;">✗ ${falt2} faltas</span>`:''}
-      ${tard2?`<span style="background:#fef9ec;color:#784212;padding:3px 8px;border-radius:99px;font-weight:700;">⏰ ${tard2} tardanzas</span>`:''}
+    const pct=Math.round(asist2/5*100);
+    const pctColor=pct>=85?'#00C853':pct>=70?'#FF6D00':'#D50000';
+    const semanaLabel=`Semana del ${ultimas2Semanas[0].split('/').slice(0,2).join('/')} al ${ultimas2Semanas[4].split('/').slice(0,2).join('/')}`;
+    const resumenHtml=`
+    <div style="margin-top:10px;background:#fff;border-radius:14px;border:1px solid #eee;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.06);">
+      <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:10px 14px;display:flex;align-items:center;justify-content:space-between;">
+        <div>
+          <div style="font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">📅 ${semanaLabel}</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            ${asist2?`<span style="font-size:11px;color:#00C853;font-weight:700;">✓ ${asist2}</span>`:''}
+            ${falt2?`<span style="font-size:11px;color:#ff5252;font-weight:700;">✗ ${falt2}</span>`:''}
+            ${tard2?`<span style="font-size:11px;color:#FF6D00;font-weight:700;">⏰ ${tard2}</span>`:''}
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:22px;font-weight:800;color:${pctColor};line-height:1;">${pct}%</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.4);">asistencia</div>
+        </div>
+      </div>
+      <div style="padding:10px 14px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          ${ultimas2Semanas.map((f,idx)=>{
+            const est=asistMap[f];
+            const partes=f.split('/');
+            const d2=new Date(parseInt(partes[2]),parseInt(partes[1])-1,parseInt(partes[0]),12,0,0);
+            const esFut=d2>hoy&&f!==fecha;
+            let dot='#e0e0e0',label='—';
+            if(!esFut&&(est==='puntual'||est==='presente')){dot='#00C853';label='Asistió';}
+            else if(!esFut&&est==='tardanza'){dot='#FF6D00';label='Tarde';}
+            else if(!esFut&&est==='ausente'){dot='#D50000';label='Faltó';}
+            else if(esFut){dot='#e0e0e0';label='...';}
+            return `<div style="flex:1;text-align:center;">
+              <div style="width:8px;height:8px;border-radius:50%;background:${dot};margin:0 auto 3px;"></div>
+              <div style="font-size:9px;color:#999;font-weight:600;">${diasLabel[idx]}</div>
+              <div style="font-size:9px;color:#555;font-weight:700;">${label}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      </div>
     </div>`;
     return `<div class="hijo-card ${pres?'presente':tardeReg?'tardanza':ausenteReg?'ausente':''}">
       <div class="hijo-nombre">${h.nombre}</div>
       <div class="hijo-grado">${h.grado} — Sección ${h.seccion}</div>
       <div style="margin-top:10px;">${estadoHtml}</div>
       ${botones}
-      <div style="margin-top:14px;border-top:1px solid var(--borde);padding-top:10px;">
-        <div style="font-size:10px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Últimas 2 semanas</div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap;">${semanaHtml}</div>
+      <div style="margin-top:14px;border-top:1px solid var(--borde);padding-top:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <span style="font-size:10px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;">Semana actual</span>
+        </div>
+        <div style="display:flex;gap:4px;justify-content:space-between;">${semanaHtml}</div>
         ${resumenHtml}
       </div>
     </div>`;
