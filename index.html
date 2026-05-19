@@ -431,6 +431,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
     <button class="nav-btn" id="nav_asistencia" onclick="irPanel('asistencia')"><span class="nav-icon">📋</span> Asistencia</button>
     <button class="nav-btn" id="nav_justificaciones" onclick="irPanel('justificaciones')"><span class="nav-icon">📄</span> Justificaciones <span id="navAlertaBadge" style="display:none;background:var(--rojo);color:white;border-radius:99px;padding:1px 7px;font-size:10px;margin-left:4px;">!</span></button>
     <button class="nav-btn" id="nav_reportes" onclick="irPanel('reportes')"><span class="nav-icon">📊</span> Reportes</button>
+    <button class="nav-btn" id="nav_refuerzo" onclick="irPanel('refuerzo')" style="display:none;"><span class="nav-icon">📌</span> Refuerzo</button>
     <button class="nav-btn" id="nav_padre" onclick="irPanel('padre')"><span class="nav-icon">👪</span> Mi Hijo</button>
     <div class="sidebar-footer">
       <div class="user-hint" id="userHint"><strong>—</strong></div>
@@ -569,6 +570,60 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
             <table><thead><tr><th>Estudiante</th><th>Grado</th><th>Sección</th><th>Hora</th><th>Estado</th></tr></thead>
             <tbody id="tablaAsistencia"></tbody></table>
           </div>
+        </div>
+      </div>
+
+      <!-- ══ PANEL REFUERZO (TUTOR) ══ -->
+      <div id="panel_refuerzo" class="hide">
+        <div class="card" style="margin-bottom:18px;">
+          <div class="card-header">
+            <span class="card-title">📌 Horario de Refuerzo Escolar</span>
+          </div>
+          <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:12px;padding:16px 18px;margin-bottom:18px;display:flex;align-items:center;gap:14px;">
+            <div style="font-size:32px;">📌</div>
+            <div>
+              <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:3px;">Configurar sesiones de refuerzo</div>
+              <div style="font-size:12px;color:rgba(255,255,255,.5);line-height:1.5;">Solo los estudiantes seleccionados verán este horario en el portal de sus padres.</div>
+            </div>
+          </div>
+          <!-- Formulario agregar sesión -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;margin-bottom:14px;">
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Día</div>
+              <select id="rfDia" style="width:100%;padding:8px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--gris-bg);color:var(--texto);">
+                <option value="Lunes">Lunes</option><option value="Martes">Martes</option><option value="Miércoles">Miércoles</option><option value="Jueves">Jueves</option><option value="Viernes">Viernes</option>
+              </select>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Hora</div>
+              <input type="time" id="rfHora" value="06:35" style="width:100%;padding:8px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--gris-bg);color:var(--texto);">
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Materia</div>
+              <input type="text" id="rfMateria" placeholder="Ej: Matemática" style="width:100%;padding:8px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--gris-bg);color:var(--texto);">
+            </div>
+            <button onclick="rfAgregarSesion()" style="padding:9px 16px;background:var(--verde);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;height:38px;">+ Agregar</button>
+          </div>
+          <!-- Lista de sesiones -->
+          <div id="rfSesionesLista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:16px;min-height:20px;"></div>
+          <!-- Mensaje adicional -->
+          <div style="margin-bottom:14px;">
+            <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Mensaje para los padres (opcional)</div>
+            <input type="text" id="rfMensaje" placeholder="Ej: Traer cuaderno de práctica y lapicero rojo" maxlength="120" style="width:100%;padding:8px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--gris-bg);color:var(--texto);">
+          </div>
+          <!-- Selección de estudiantes -->
+          <div style="margin-bottom:14px;">
+            <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Estudiantes convocados a refuerzo</div>
+            <div id="rfEstudiantesLista" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;max-height:220px;overflow-y:auto;padding:2px;"></div>
+          </div>
+          <button onclick="rfPublicar()" style="width:100%;padding:11px;background:linear-gradient(135deg,#e8000d,#b00008);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+            📢 Publicar horario para los padres seleccionados
+          </button>
+        </div>
+        <!-- Preview del horario publicado -->
+        <div class="card" id="rfPreviewCard" style="display:none;">
+          <div class="card-header"><span class="card-title">👁 Vista previa — lo que verán los padres</span></div>
+          <div id="rfPreviewContenido"></div>
         </div>
       </div>
 
@@ -1090,18 +1145,22 @@ function entrarApp() {
   document.getElementById('loginBtn').textContent = '🔐 Ingresar';
   const iconos = { admin:'👑', auxiliar:'🛡️', tutor:'📖', padre:'👪' };
   document.getElementById('sessionBadge').textContent = (iconos[sesion.rol]||'') + ' ' + sesion.nombre;
-  const todos = ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_padre'];
+  const todos = ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_padre','nav_refuerzo'];
   todos.forEach(n => { const el=document.getElementById(n); if(el) el.style.display=''; });
   if (sesion.rol === 'padre') {
-    ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     ['mn_admin','mn_asistencia','mn_justificaciones','mn_reportes'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('timerBanner').style.display = 'none';
-  } else if (sesion.rol === 'tutor' || sesion.rol === 'auxiliar') {
+  } else if (sesion.rol === 'tutor') {
     ['nav_admin','nav_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     ['mn_admin','mn_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('timerBanner').style.display = '';
+  } else if (sesion.rol === 'auxiliar') {
+    ['nav_admin','nav_padre','nav_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['mn_admin','mn_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    document.getElementById('timerBanner').style.display = '';
   } else if (sesion.rol === 'admin') {
-    document.getElementById('nav_padre').style.display = 'none';
+    ['nav_padre','nav_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('mn_padre').style.display = 'none';
   }
   const hints = { admin:'<strong>👑 Administrador</strong>Gestión completa del sistema.', auxiliar:'<strong>🛡️ Auxiliar</strong>Registra asistencia y justificaciones.', tutor:'<strong>📖 Tutor</strong>Revisa tu aula y aprueba justificaciones.', padre:'<strong>👪 Apoderado</strong>Consulta la asistencia de tu hijo.' };
@@ -1158,7 +1217,7 @@ function actualizarFecha() {
     new Date().toLocaleDateString('es-PE',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
 }
 
-const paneles = ['admin','asistencia','justificaciones','reportes','padre'];
+const paneles = ['admin','asistencia','justificaciones','reportes','padre','refuerzo'];
 function irPanel(panel) {
   paneles.forEach(p => {
     const el = document.getElementById('panel_'+p); if(el) el.classList.add('hide');
@@ -1168,12 +1227,13 @@ function irPanel(panel) {
   const el = document.getElementById('panel_'+panel); if(el) el.classList.remove('hide');
   const nav = document.getElementById('nav_'+panel); if(nav) nav.classList.add('active');
   const mn = document.getElementById('mn_'+panel); if(mn) mn.classList.add('active');
-  const tits = { admin:'Administración', asistencia:'Control de Asistencia', justificaciones:'Justificaciones', reportes:'Reportes y Estadísticas', padre:'Mi Hijo/a' };
+  const tits = { admin:'Administración', asistencia:'Control de Asistencia', justificaciones:'Justificaciones', reportes:'Reportes y Estadísticas', padre:'Mi Hijo/a', refuerzo:'Refuerzo Escolar' };
   document.getElementById('topbarTitle').textContent = tits[panel] || '';
   if (panel==='admin') { renderEstudiantes(); renderListaUsuarios(); actualizarStats(); }
   if (panel==='asistencia') { renderListaAsistencia(); cargarTablaAsistencia(); renderAlertas(); }
   if (panel==='justificaciones') { renderJustificaciones(); }
   if (panel==='reportes') { document.getElementById('tablaReporte').innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--texto-suave);">Selecciona los filtros y presiona 🔍 Buscar</td></tr>'; }
+  if (panel==='refuerzo') { rfCargarPanel(); }
 }
 
 function iniciarSesion() {
@@ -1744,6 +1804,14 @@ async function renderHijosInfo(hijos) {
       }));
     } catch(_) {}
   }
+  // Cargar horario de refuerzo si el hijo está convocado (1 consulta por hijo)
+  const refuerzosMap = {};
+  for (const h of hijos) {
+    try {
+      const rf = await rfCargarVistaPadre(h.id);
+      if (rf) refuerzosMap[h.id] = rf;
+    } catch(e) {}
+  }
   const c=document.getElementById('padreHijosDiv');
   c.innerHTML=hijos.map(h=>{
     const pres=presSet.has(h.id), ausenteReg=ausenteSet.has(h.id), tardeReg=tardSet.has(h.id);
@@ -1891,6 +1959,32 @@ async function renderHijosInfo(hijos) {
         📤 Compartir logro
       </a>
     </div>`:'';
+    // — Horario de refuerzo si el hijo está convocado —
+    const rfDoc = refuerzosMap[h.id];
+    let refuerzoHtml = '';
+    if (rfDoc) {
+      const dias = ['Lunes','Martes','Miércoles','Jueves','Viernes'];
+      const colsRf = dias.map(dia => {
+        const ses = (rfDoc.sesiones||[]).filter(s=>s.dia===dia);
+        const [bg,col] = rfDoc.sesiones&&ses.length ? (()=>{const k=Object.keys(_rfColores||{}).find(k=>ses[0].materia.toLowerCase().includes(k.toLowerCase()))||'default';return (({'Matemática':'#E6F1FB,#185FA5','Comunicación':'#FAEEDA,#854F0B','Ciencias':'#EAF3DE,#3B6D11','Historia':'#FBEAF0,#993556','Inglés':'#EEEDFE,#3C3489','default':'#F1EFE8,#444441'})[k]||'#F1EFE8,#444441').split(',')})() : ['#f5f5f5','#ccc'];
+        return `<div style="flex:1;min-width:0;">
+          <div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;text-align:center;padding-bottom:4px;border-bottom:0.5px solid #eee;margin-bottom:5px;">${dia.substring(0,3)}</div>
+          ${ses.length ? ses.map(s=>`<div style="background:${bg};border-left:2px solid ${col};border-radius:6px;padding:5px 6px;"><div style="font-size:9px;color:${col};font-weight:700;">${s.hora}</div><div style="font-size:10px;font-weight:700;color:#333;">${s.materia}</div></div>`).join('') : `<div style="text-align:center;color:#ddd;font-size:14px;padding:4px;">—</div>`}
+        </div>`;
+      }).join('');
+      refuerzoHtml = `
+      <div style="margin-top:14px;border-top:1px solid var(--borde);padding-top:12px;">
+        <div style="background:linear-gradient(135deg,#7b1f18,#e8000d);border-radius:10px;padding:10px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;">
+          <div>
+            <div style="font-size:10px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.5px;">📌 Refuerzo escolar</div>
+            <div style="font-size:13px;font-weight:700;color:#fff;margin-top:2px;">${nombreCorto} está convocado</div>
+          </div>
+          <div style="font-size:26px;">⚠️</div>
+        </div>
+        <div style="display:flex;gap:5px;margin-bottom:8px;">${colsRf}</div>
+        ${rfDoc.mensaje?`<div style="background:#fff8e1;border-left:3px solid #f39c12;border-radius:0 8px 8px 0;padding:8px 10px;font-size:12px;color:#784212;font-weight:500;">📢 ${rfDoc.mensaje}</div>`:''}
+      </div>`;
+    }
     return `<div class="hijo-card ${pres?'presente':tardeReg?'tardanza':ausenteReg?'ausente':''}">
       <div class="hijo-nombre">${h.nombre}</div>
       <div class="hijo-grado">${h.grado} — Sección ${h.seccion}</div>
@@ -1907,6 +2001,7 @@ async function renderHijosInfo(hijos) {
         <div style="display:flex;gap:4px;justify-content:space-between;">${semanaHtml}</div>
         ${resumenHtml}
       </div>
+      ${refuerzoHtml}
     </div>`;
   }).join('');
 }
@@ -2619,6 +2714,156 @@ function init() {
   const fi=document.getElementById('rFechaInicio'); if(fi) fi.value=hace7;
   const ff=document.getElementById('rFechaFin'); if(ff) ff.value=hoy;
 }
+
+// ══ MÓDULO REFUERZO ESCOLAR ══
+let _rfSesiones = [];
+
+async function rfCargarPanel() {
+  // Cargar estudiantes de las secciones del tutor
+  let lista = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
+  if (sesion?.secciones?.length) lista = lista.filter(e => sesion.secciones.includes(e.seccion));
+  if (sesion?.grados?.length) lista = lista.filter(e => sesion.grados.includes(e.grado));
+  const cont = document.getElementById('rfEstudiantesLista');
+  if (!cont) return;
+  // Cargar horario existente si hay uno publicado
+  try {
+    const docs = await fsQuery('refuerzo', FB.where('tutorUid','==', sesion.uid));
+    if (docs.length) {
+      const doc = docs[0];
+      _rfSesiones = doc.sesiones || [];
+      document.getElementById('rfMensaje').value = doc.mensaje || '';
+      rfRenderSesiones();
+      // Marcar los estudiantes ya seleccionados
+      setTimeout(() => {
+        (doc.estudiantesIds || []).forEach(id => {
+          const cb = document.getElementById('rfcb_' + id);
+          if (cb) cb.checked = true;
+        });
+      }, 100);
+      rfRenderPreview(doc);
+    }
+  } catch(e) {}
+  // Renderizar checkboxes de estudiantes
+  cont.innerHTML = lista.map(e => `
+    <label style="display:flex;align-items:center;gap:8px;background:var(--gris-bg);border:1px solid var(--borde);border-radius:8px;padding:8px 10px;cursor:pointer;font-size:12px;">
+      <input type="checkbox" id="rfcb_${e.id}" value="${e.id}" style="width:15px;height:15px;accent-color:#e8000d;cursor:pointer;">
+      <div>
+        <div style="font-weight:600;color:var(--texto);">${e.nombre}</div>
+        <div style="color:var(--texto-suave);font-size:11px;">${e.grado} — Sección ${e.seccion}</div>
+      </div>
+    </label>`).join('');
+}
+
+function rfAgregarSesion() {
+  const dia = document.getElementById('rfDia').value;
+  const hora = document.getElementById('rfHora').value;
+  const materia = document.getElementById('rfMateria').value.trim();
+  if (!materia) { notif('⚠️ Ingresa el nombre de la materia','warning'); return; }
+  _rfSesiones.push({ dia, hora, materia });
+  document.getElementById('rfMateria').value = '';
+  rfRenderSesiones();
+}
+
+function rfEliminarSesion(idx) {
+  _rfSesiones.splice(idx, 1);
+  rfRenderSesiones();
+}
+
+const _rfColores = {
+  'Matemática':'#E6F1FB,#185FA5','Comunicación':'#FAEEDA,#854F0B',
+  'Ciencias':'#EAF3DE,#3B6D11','Historia':'#FBEAF0,#993556',
+  'Inglés':'#EEEDFE,#3C3489','default':'#F1EFE8,#444441'
+};
+function rfGetColor(mat) {
+  const key = Object.keys(_rfColores).find(k => mat.toLowerCase().includes(k.toLowerCase())) || 'default';
+  return _rfColores[key].split(',');
+}
+
+function rfRenderSesiones() {
+  const cont = document.getElementById('rfSesionesLista');
+  if (!cont) return;
+  if (!_rfSesiones.length) { cont.innerHTML = '<div style="text-align:center;padding:12px;color:var(--texto-suave);font-size:13px;">Aún no has agregado sesiones.</div>'; return; }
+  cont.innerHTML = _rfSesiones.map((s, i) => {
+    const [bg, col] = rfGetColor(s.materia);
+    return `<div style="display:flex;align-items:center;gap:10px;background:${bg};border-radius:8px;padding:9px 12px;border-left:3px solid ${col};">
+      <div style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;background:${col};color:#fff;min-width:72px;text-align:center;">${s.dia}</div>
+      <div style="font-size:12px;color:${col};font-weight:600;min-width:52px;">${s.hora}</div>
+      <div style="font-size:13px;font-weight:600;color:var(--texto);flex:1;">${s.materia}</div>
+      <button onclick="rfEliminarSesion(${i})" style="background:none;border:none;color:var(--texto-suave);font-size:18px;cursor:pointer;padding:0 4px;">×</button>
+    </div>`;
+  }).join('');
+}
+
+async function rfPublicar() {
+  if (!_rfSesiones.length) { notif('⚠️ Agrega al menos una sesión','warning'); return; }
+  const checkboxes = document.querySelectorAll('#rfEstudiantesLista input[type=checkbox]:checked');
+  if (!checkboxes.length) { notif('⚠️ Selecciona al menos un estudiante','warning'); return; }
+  const estudiantesIds = [...checkboxes].map(cb => cb.value);
+  const mensaje = document.getElementById('rfMensaje').value.trim();
+  const data = {
+    tutorUid: sesion.uid,
+    tutorNombre: sesion.nombre,
+    sesiones: _rfSesiones,
+    mensaje,
+    estudiantesIds,
+    grados: sesion.grados || [],
+    secciones: sesion.secciones || [],
+    fechaPublicacion: new Date().toLocaleDateString('es-PE')
+  };
+  try {
+    // Buscar si ya existe un doc de este tutor para actualizarlo
+    const docs = await fsQuery('refuerzo', FB.where('tutorUid','==', sesion.uid));
+    if (docs.length) await fsUpdate('refuerzo', docs[0].id, data);
+    else await fsAdd('refuerzo', data);
+    notif('✅ Horario publicado correctamente','success');
+    rfRenderPreview(data);
+  } catch(e) { notif('❌ Error al publicar horario','error'); }
+}
+
+function rfRenderPreview(data) {
+  const card = document.getElementById('rfPreviewCard');
+  const cont = document.getElementById('rfPreviewContenido');
+  if (!card || !cont) return;
+  card.style.display = '';
+  const dias = ['Lunes','Martes','Miércoles','Jueves','Viernes'];
+  const colsHtml = dias.map(dia => {
+    const sesiones = (data.sesiones || []).filter(s => s.dia === dia);
+    const [bg, col] = rfGetColor(sesiones[0]?.materia || '');
+    const sesHtml = sesiones.length
+      ? sesiones.map(s => `<div style="background:${bg};border-left:3px solid ${col};border-radius:8px;padding:7px 8px;">
+          <div style="font-size:10px;color:${col};font-weight:600;">${s.hora}</div>
+          <div style="font-size:11px;font-weight:700;color:var(--texto);">${s.materia}</div>
+        </div>`).join('')
+      : `<div style="background:var(--gris-bg);border-radius:8px;padding:7px 8px;text-align:center;color:var(--texto-suave);font-size:18px;">—</div>`;
+    return `<div style="flex:1;min-width:0;">
+      <div style="font-size:9px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;text-align:center;padding-bottom:5px;border-bottom:0.5px solid var(--borde);margin-bottom:6px;">${dia.substring(0,3)}</div>
+      <div style="display:flex;flex-direction:column;gap:5px;">${sesHtml}</div>
+    </div>`;
+  }).join('');
+  cont.innerHTML = `
+    <div style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:12px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:11px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Publicado por</div>
+        <div style="font-size:14px;font-weight:700;color:#fff;">${data.tutorNombre || 'Tutor'}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">📅 ${data.fechaPublicacion || ''}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:22px;font-weight:800;color:#e8000d;">${(data.estudiantesIds||[]).length}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.4);">convocados</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;">${colsHtml}</div>
+    ${data.mensaje ? `<div style="background:var(--gris-bg);border-left:3px solid #e8000d;border-radius:0 8px 8px 0;padding:9px 12px;font-size:12px;color:var(--texto);">📢 ${data.mensaje}</div>` : ''}`;
+}
+
+// ══ VISTA DEL PADRE — cargar horario de refuerzo si su hijo está convocado ══
+async function rfCargarVistaPadre(hijoId) {
+  try {
+    const docs = await fsQuery('refuerzo', FB.where('estudiantesIds','array-contains', hijoId));
+    return docs.length ? docs[0] : null;
+  } catch(e) { return null; }
+}
+
 window.onload=init;
 </script>
 </body>
