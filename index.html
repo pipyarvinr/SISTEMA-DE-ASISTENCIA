@@ -1594,6 +1594,8 @@ async function eliminarRegistroHoy(registroId, nombre){
   if(!confirm(`¿Eliminar el registro de hoy de "${nombre}"?\nPodrá ser escaneado nuevamente.`)) return;
   try {
     await fsDelete('asistencia', registroId);
+    // Limpiar caché del padre para que vea el cambio en su próxima consulta
+    Object.keys(sessionStorage).filter(k=>k.startsWith('padre_')).forEach(k=>sessionStorage.removeItem(k));
     notif(`🗑 Registro eliminado: ${nombre}`,'info');
     cargarTablaAsistencia(); actualizarStats();
   } catch(e){ notif('❌ Error al eliminar registro','error'); }
