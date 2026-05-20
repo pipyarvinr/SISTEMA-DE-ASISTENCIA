@@ -1681,6 +1681,8 @@ async function confirmarLlegadaJustif(){
     if(!r.length){notif('❌ No se encontró registro de asistencia','error');return;}
     // Actualizar estado a justificado
     await fsUpdate('asistencia',r[0].id,{estado:'justificado',motivoJustif:motivo,observacionJustif:observacion||'',justificadoPor:sesion?.nombre||'',horaJustif:hora});
+    // Limpiar caché del padre para que vea el cambio
+    Object.keys(sessionStorage).filter(k=>k.startsWith('padre_')).forEach(k=>sessionStorage.removeItem(k));
     document.getElementById('modalLlegadaJustif').classList.remove('open');
     notif(`📄 Llegada justificada registrada correctamente`,'success');
     cargarTablaAsistencia(); actualizarStats();
@@ -1815,6 +1817,7 @@ async function renderHijosInfo(hijos) {
   const c=document.getElementById('padreHijosDiv');
   c.innerHTML=hijos.map(h=>{
     const pres=presSet.has(h.id), ausenteReg=ausenteSet.has(h.id), tardeReg=tardSet.has(h.id);
+    const justifReg=asistSemana.find(a=>a.estudianteId===h.id&&a.fecha===fecha&&a.estado==='justificado');
     const horaReg=tardSet.get(h.id)||'';
     const justifHoy=justifs.find(j=>j.estudianteId===h.id&&j.fecha===fecha);
     let estadoHtml='',botones='';
@@ -1822,6 +1825,8 @@ async function renderHijosInfo(hijos) {
       estadoHtml='<span class="badge badge-green" style="font-size:12px;padding:5px 14px;">✅ ASISTIÓ hoy</span>';
     }else if(tardeReg){
       estadoHtml=`<div style="background:#fef9ec;border:2px solid #e67e22;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.6em;margin-bottom:4px;">⏰</div><div style="font-weight:700;color:#784212;font-size:14px;">LLEGÓ TARDE</div>${horaReg?`<div style="font-size:11px;color:#784212;margin-top:3px;">Registrado a las ${horaReg}</div>`:''}</div>`;
+    }else if(justifReg){
+      estadoHtml=`<div style="background:#e8f5e9;border:2px solid #2e7d32;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.4em;margin-bottom:4px;">📄</div><div style="font-weight:700;color:#2e7d32;font-size:13px;">Falta justificada</div><div style="font-size:11px;color:#2e7d32;margin-top:3px;">Aprobada por ${justifReg.justificadoPor||'el tutor'}</div></div>`;
     }else if(justifHoy && justifHoy.estado==='pendiente'){
       estadoHtml=`<div style="background:#fef9ec;border:2px solid #f39c12;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.4em;margin-bottom:4px;">⏳</div><div style="font-weight:700;color:#784212;font-size:13px;">Justificación enviada</div><div style="font-size:11px;color:#784212;margin-top:3px;">En espera de aprobación del tutor</div></div>`;
     }else if(justifHoy && justifHoy.estado==='aprobado'){
