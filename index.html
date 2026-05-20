@@ -432,6 +432,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
     <button class="nav-btn" id="nav_justificaciones" onclick="irPanel('justificaciones')"><span class="nav-icon">📄</span> Justificaciones <span id="navAlertaBadge" style="display:none;background:var(--rojo);color:white;border-radius:99px;padding:1px 7px;font-size:10px;margin-left:4px;">!</span></button>
     <button class="nav-btn" id="nav_reportes" onclick="irPanel('reportes')"><span class="nav-icon">📊</span> Reportes</button>
     <button class="nav-btn" id="nav_refuerzo" onclick="irPanel('refuerzo')" style="display:none;"><span class="nav-icon">📌</span> Refuerzo</button>
+    <button class="nav-btn" id="nav_incidencias" onclick="irPanel('incidencias')" style="display:none;"><span class="nav-icon">📓</span> Incidencias</button>
     <button class="nav-btn" id="nav_padre" onclick="irPanel('padre')"><span class="nav-icon">👪</span> Mi Hijo</button>
     <div class="sidebar-footer">
       <div class="user-hint" id="userHint"><strong>—</strong></div>
@@ -675,6 +676,82 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
       </div>
 
       <!-- ══ PANEL PADRE ══ -->
+      <!-- ══ PANEL INCIDENCIAS ══ -->
+      <div id="panel_incidencias" class="hide">
+        <!-- REGISTRO -->
+        <div class="card" style="margin-bottom:18px;">
+          <div class="card-header"><span class="card-title">📓 Nueva Incidencia</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Estudiante</div>
+              <input type="text" id="incBuscar" placeholder="Buscar por nombre..." style="width:100%;padding:8px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--gris-bg);color:var(--texto);" oninput="incBuscarEstudiante()">
+              <div id="incResultados" style="display:none;position:absolute;z-index:50;background:var(--fondo);border:1px solid var(--borde);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:180px;overflow-y:auto;width:280px;margin-top:2px;"></div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Tipo de incidencia</div>
+              <select id="incTipo" style="width:100%;padding:8px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--gris-bg);color:var(--texto);">
+                <option value="conducta">🔴 Conducta</option>
+                <option value="academico">🟡 Académico</option>
+                <option value="salud">🔵 Salud</option>
+                <option value="asistencia">🟠 Asistencia</option>
+                <option value="otro">⚪ Otro</option>
+              </select>
+            </div>
+          </div>
+          <div id="incEstudianteSeleccionado" style="display:none;background:var(--gris-bg);border:1.5px solid var(--borde);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:13px;font-weight:600;color:var(--texto);"></div>
+          <div style="margin-bottom:12px;">
+            <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Descripción de la incidencia</div>
+            <textarea id="incDescripcion" rows="3" placeholder="Describe detalladamente lo ocurrido..." style="width:100%;padding:8px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--gris-bg);color:var(--texto);resize:vertical;"></textarea>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;align-items:center;">
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Evidencia (foto opcional)</div>
+              <input type="file" id="incFoto" accept="image/*" style="font-size:12px;width:100%;">
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">¿Notificar al padre?</div>
+              <div style="display:flex;gap:10px;align-items:center;margin-top:4px;">
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                  <input type="radio" name="incNotificar" value="si" id="incNotifSi" style="accent-color:#e8000d;"> Sí, notificar
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">
+                  <input type="radio" name="incNotificar" value="no" id="incNotifNo" checked style="accent-color:#e8000d;"> Solo interno
+                </label>
+              </div>
+            </div>
+          </div>
+          <button onclick="incRegistrar()" style="width:100%;padding:11px;background:linear-gradient(135deg,#e8000d,#b00008);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">📓 Registrar Incidencia</button>
+        </div>
+        <!-- ESTADÍSTICAS -->
+        <div class="card" style="margin-bottom:18px;">
+          <div class="card-header">
+            <span class="card-title">📊 Estadísticas del Mes</span>
+            <select id="incMesFiltro" onchange="incCargarEstadisticas()" style="padding:6px 10px;border:1px solid var(--borde);border-radius:8px;font-size:12px;background:var(--gris-bg);color:var(--texto);">
+            </select>
+          </div>
+          <div id="incStats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:18px;"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Por tipo</div>
+              <div id="incGrafTipo"></div>
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Top alumnos</div>
+              <div id="incTopAlumnos"></div>
+            </div>
+          </div>
+          <div style="margin-top:16px;">
+            <div style="font-size:11px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Mapa de calor por grado y sección</div>
+            <div id="incMapaCalor" style="overflow-x:auto;"></div>
+          </div>
+        </div>
+        <!-- HISTORIAL -->
+        <div class="card">
+          <div class="card-header"><span class="card-title">📋 Historial de Incidencias</span></div>
+          <div id="incHistorial" style="display:flex;flex-direction:column;gap:8px;"></div>
+        </div>
+      </div>
+
       <div id="panel_padre" class="hide">
         <div id="padreLoginDiv" class="card">
           <div class="card-header"><span class="card-title">👪 Portal del Apoderado</span></div>
@@ -1145,10 +1222,10 @@ function entrarApp() {
   document.getElementById('loginBtn').textContent = '🔐 Ingresar';
   const iconos = { admin:'👑', auxiliar:'🛡️', tutor:'📖', padre:'👪' };
   document.getElementById('sessionBadge').textContent = (iconos[sesion.rol]||'') + ' ' + sesion.nombre;
-  const todos = ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_padre','nav_refuerzo'];
+  const todos = ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_padre','nav_refuerzo','nav_incidencias'];
   todos.forEach(n => { const el=document.getElementById(n); if(el) el.style.display=''; });
   if (sesion.rol === 'padre') {
-    ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_refuerzo','nav_incidencias'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     ['mn_admin','mn_asistencia','mn_justificaciones','mn_reportes'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('timerBanner').style.display = 'none';
   } else if (sesion.rol === 'tutor') {
@@ -1217,7 +1294,7 @@ function actualizarFecha() {
     new Date().toLocaleDateString('es-PE',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
 }
 
-const paneles = ['admin','asistencia','justificaciones','reportes','padre','refuerzo'];
+const paneles = ['admin','asistencia','justificaciones','reportes','padre','refuerzo','incidencias'];
 function irPanel(panel) {
   paneles.forEach(p => {
     const el = document.getElementById('panel_'+p); if(el) el.classList.add('hide');
@@ -1227,13 +1304,14 @@ function irPanel(panel) {
   const el = document.getElementById('panel_'+panel); if(el) el.classList.remove('hide');
   const nav = document.getElementById('nav_'+panel); if(nav) nav.classList.add('active');
   const mn = document.getElementById('mn_'+panel); if(mn) mn.classList.add('active');
-  const tits = { admin:'Administración', asistencia:'Control de Asistencia', justificaciones:'Justificaciones', reportes:'Reportes y Estadísticas', padre:'Mi Hijo/a', refuerzo:'Refuerzo Escolar' };
+  const tits = { admin:'Administración', asistencia:'Control de Asistencia', justificaciones:'Justificaciones', reportes:'Reportes y Estadísticas', padre:'Mi Hijo/a', refuerzo:'Refuerzo Escolar', incidencias:'Cuaderno de Incidencias' };
   document.getElementById('topbarTitle').textContent = tits[panel] || '';
   if (panel==='admin') { renderEstudiantes(); renderListaUsuarios(); actualizarStats(); }
   if (panel==='asistencia') { renderListaAsistencia(); cargarTablaAsistencia(); renderAlertas(); }
   if (panel==='justificaciones') { renderJustificaciones(); }
   if (panel==='reportes') { document.getElementById('tablaReporte').innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--texto-suave);">Selecciona los filtros y presiona 🔍 Buscar</td></tr>'; }
   if (panel==='refuerzo') { rfCargarPanel(); }
+  if (panel==='incidencias') { incCargarPanel(); }
 }
 
 function iniciarSesion() {
@@ -1814,6 +1892,19 @@ async function renderHijosInfo(hijos) {
       if (rf) refuerzosMap[h.id] = rf;
     } catch(e) {}
   }
+  // Cargar incidencias notificadas al padre (solo las marcadas como notificarPadre=true)
+  const incidenciasMap = {};
+  for (const h of hijos) {
+    try {
+      const docs = await fsQuery('incidencias',
+        FB.where('estudianteId','==', h.id),
+        FB.where('notificarPadre','==', true),
+        FB.orderBy('createdAt','desc'),
+        FB.limit(5)
+      );
+      if (docs.length) incidenciasMap[h.id] = docs;
+    } catch(e) {}
+  }
   const c=document.getElementById('padreHijosDiv');
   c.innerHTML=hijos.map(h=>{
     const pres=presSet.has(h.id), ausenteReg=ausenteSet.has(h.id), tardeReg=tardSet.has(h.id);
@@ -1990,6 +2081,24 @@ async function renderHijosInfo(hijos) {
         ${rfDoc.mensaje?`<div style="background:#fff8e1;border-left:3px solid #f39c12;border-radius:0 8px 8px 0;padding:8px 10px;font-size:12px;color:#784212;font-weight:500;">📢 ${rfDoc.mensaje}</div>`:''}
       </div>`;
     }
+    // — Incidencias notificadas al padre —
+    const incDocs = incidenciasMap[h.id]||[];
+    const incHtml = incDocs.length ? `
+    <div style="margin-top:14px;border-top:1px solid var(--borde);padding-top:12px;">
+      <div style="font-size:10px;font-weight:700;color:#E53935;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">📓 Comunicados del colegio</div>
+      ${incDocs.map(d=>{
+        const t = {conducta:{color:'#E53935',bg:'#FFEBEE',icono:'🔴',label:'Conducta'},academico:{color:'#F57C00',bg:'#FFF3E0',icono:'🟡',label:'Académico'},salud:{color:'#1565C0',bg:'#E3F2FD',icono:'🔵',label:'Salud'},asistencia:{color:'#6A1B9A',bg:'#F3E5F5',icono:'🟣',label:'Asistencia'},otro:{color:'#546E7A',bg:'#ECEFF1',icono:'⚪',label:'Otro'}}[d.tipo]||{color:'#546E7A',bg:'#ECEFF1',icono:'⚪',label:'Otro'};
+        return `<div style="background:${t.bg};border-left:3px solid ${t.color};border-radius:0 8px 8px 0;padding:10px 12px;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${t.color};color:#fff;font-weight:600;">${t.icono} ${t.label}</span>
+            <span style="font-size:10px;color:${t.color};">${d.fecha} ${d.hora}</span>
+          </div>
+          <div style="font-size:13px;color:#333;line-height:1.5;">${d.descripcion}</div>
+          <div style="font-size:10px;color:#888;margin-top:4px;">Registrado por: ${d.profesorNombre}</div>
+          ${d.foto?`<img src="${d.foto}" style="margin-top:6px;max-width:100%;max-height:140px;border-radius:6px;object-fit:cover;">`:''}
+        </div>`;
+      }).join('')}
+    </div>` : '';
     return `<div class="hijo-card ${pres?'presente':tardeReg?'tardanza':ausenteReg?'ausente':''}">
       <div class="hijo-nombre">${h.nombre}</div>
       <div class="hijo-grado">${h.grado} — Sección ${h.seccion}</div>
@@ -2007,6 +2116,7 @@ async function renderHijosInfo(hijos) {
         ${resumenHtml}
       </div>
       ${refuerzoHtml}
+      ${incHtml}
     </div>`;
   }).join('');
 }
@@ -2805,6 +2915,10 @@ async function rfPublicar() {
   if (!checkboxes.length) { notif('⚠️ Selecciona al menos un estudiante','warning'); return; }
   const estudiantesIds = [...checkboxes].map(cb => cb.value);
   const mensaje = document.getElementById('rfMensaje').value.trim();
+  const hoy = new Date();
+  const viernesOffset = 5 - hoy.getDay();
+  const viernes = new Date(hoy);
+  viernes.setDate(hoy.getDate() + (viernesOffset >= 0 ? viernesOffset : 0));
   const data = {
     tutorUid: sesion.uid,
     tutorNombre: sesion.nombre,
@@ -2813,7 +2927,8 @@ async function rfPublicar() {
     estudiantesIds,
     grados: sesion.grados || [],
     secciones: sesion.secciones || [],
-    fechaPublicacion: new Date().toLocaleDateString('es-PE')
+    fechaPublicacion: hoy.toLocaleDateString('es-PE'),
+    fechaExpira: viernes.toLocaleDateString('es-PE')
   };
   try {
     const docs = await fsQuery('refuerzo', FB.where('tutorUid','==', sesion.uid));
@@ -2864,8 +2979,266 @@ function rfRenderPreview(data) {
 async function rfCargarVistaPadre(hijoId) {
   try {
     const docs = await fsQuery('refuerzo', FB.where('estudiantesIds','array-contains', hijoId));
-    return docs.length ? docs[0] : null;
+    if (!docs.length) return null;
+    const doc = docs[0];
+    // Verificar si el horario ya expiró
+    if (doc.fechaExpira) {
+      const partes = doc.fechaExpira.split('/');
+      const expira = new Date(parseInt(partes[2]), parseInt(partes[1])-1, parseInt(partes[0]), 23, 59, 59);
+      if (new Date() > expira) return null; // Expirado — no mostrar
+    }
+    return doc;
   } catch(e) { return null; }
+}
+
+
+// ══ MÓDULO CUADERNO DE INCIDENCIAS ══
+let _incEstudiante = null;
+let _incDatos = [];
+
+const _incTipos = {
+  conducta:   { label:'Conducta',   color:'#E53935', bg:'#FFEBEE', icono:'🔴' },
+  academico:  { label:'Académico',  color:'#F57C00', bg:'#FFF3E0', icono:'🟡' },
+  salud:      { label:'Salud',      color:'#1565C0', bg:'#E3F2FD', icono:'🔵' },
+  asistencia: { label:'Asistencia', color:'#6A1B9A', bg:'#F3E5F5', icono:'🟣' },
+  otro:       { label:'Otro',       color:'#546E7A', bg:'#ECEFF1', icono:'⚪' },
+};
+
+async function incCargarPanel() {
+  // Llenar selector de meses
+  const sel = document.getElementById('incMesFiltro');
+  if (sel && !sel.options.length) {
+    const hoy = new Date();
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      const val = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+      const lbl = d.toLocaleDateString('es-PE', { month:'long', year:'numeric' });
+      const opt = document.createElement('option');
+      opt.value = val; opt.textContent = lbl;
+      sel.appendChild(opt);
+    }
+  }
+  await incCargarEstadisticas();
+  await incCargarHistorial();
+}
+
+function incBuscarEstudiante() {
+  const q = document.getElementById('incBuscar').value.trim().toLowerCase();
+  const cont = document.getElementById('incResultados');
+  if (q.length < 2) { cont.style.display='none'; return; }
+  const lista = _estudiantesCache.filter(e => e.nombre.toLowerCase().includes(q)).slice(0,6);
+  if (!lista.length) { cont.style.display='none'; return; }
+  cont.style.display = 'block';
+  cont.innerHTML = lista.map(e => `
+    <div onclick="incSeleccionarEstudiante('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')"
+      style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--borde);"
+      onmouseover="this.style.background='var(--gris-bg)'" onmouseout="this.style.background=''">
+      <div style="font-weight:600;">${e.nombre}</div>
+      <div style="font-size:11px;color:var(--texto-suave);">${e.grado} — Sección ${e.seccion}</div>
+    </div>`).join('');
+}
+
+function incSeleccionarEstudiante(id, nombre, grado, seccion) {
+  _incEstudiante = { id, nombre, grado, seccion };
+  document.getElementById('incBuscar').value = nombre;
+  document.getElementById('incResultados').style.display = 'none';
+  const sel = document.getElementById('incEstudianteSeleccionado');
+  sel.style.display = 'block';
+  sel.textContent = `✅ ${nombre} — ${grado} Sección ${seccion}`;
+}
+
+async function incRegistrar() {
+  if (!_incEstudiante) { notif('⚠️ Selecciona un estudiante','warning'); return; }
+  const descripcion = document.getElementById('incDescripcion').value.trim();
+  if (!descripcion) { notif('⚠️ Escribe la descripción','warning'); return; }
+  const tipo = document.getElementById('incTipo').value;
+  const notificarPadre = document.getElementById('incNotifSi').checked;
+  const fecha = getFecha();
+  const hora = new Date().toLocaleTimeString('es-PE', { hour:'2-digit', minute:'2-digit' });
+  // Comprimir y subir foto si existe
+  let fotoBase64 = '';
+  const fotoInput = document.getElementById('incFoto');
+  if (fotoInput.files.length) {
+    try { fotoBase64 = await incComprimirFoto(fotoInput.files[0]); } catch(e) {}
+  }
+  const data = {
+    estudianteId: _incEstudiante.id,
+    estudianteNombre: _incEstudiante.nombre,
+    grado: _incEstudiante.grado,
+    seccion: _incEstudiante.seccion,
+    tipo, descripcion, fecha, hora,
+    profesorNombre: sesion?.nombre || '',
+    profesorUid: sesion?.uid || '',
+    notificarPadre,
+    foto: fotoBase64,
+    createdAt: new Date().toISOString()
+  };
+  try {
+    await fsAdd('incidencias', data);
+    notif('📓 Incidencia registrada correctamente','success');
+    // Limpiar formulario
+    _incEstudiante = null;
+    document.getElementById('incBuscar').value = '';
+    document.getElementById('incDescripcion').value = '';
+    document.getElementById('incFoto').value = '';
+    document.getElementById('incEstudianteSeleccionado').style.display = 'none';
+    document.getElementById('incNotifNo').checked = true;
+    await incCargarEstadisticas();
+    await incCargarHistorial();
+  } catch(e) { console.error(e); notif('❌ Error al registrar: '+(e.message||e.code),'error'); }
+}
+
+function incComprimirFoto(file) {
+  return new Promise((res, rej) => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX = 600;
+        let w = img.width, h = img.height;
+        if (w > MAX) { h = h * MAX / w; w = MAX; }
+        if (h > MAX) { w = w * MAX / h; h = MAX; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        res(canvas.toDataURL('image/jpeg', 0.6));
+      };
+      img.onerror = rej;
+      img.src = ev.target.result;
+    };
+    reader.onerror = rej;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function incCargarEstadisticas() {
+  const sel = document.getElementById('incMesFiltro');
+  if (!sel) return;
+  const [anio, mes] = sel.value.split('-').map(Number);
+  const primerDia = new Date(anio, mes-1, 1).toLocaleDateString('es-PE');
+  const ultimoDia = new Date(anio, mes, 0).toLocaleDateString('es-PE');
+  try {
+    // 1 sola consulta por mes — todo el análisis en cliente
+    const docs = await fsQuery('incidencias', FB.where('createdAt','>=',new Date(anio,mes-1,1).toISOString()), FB.where('createdAt','<',new Date(anio,mes,1).toISOString()));
+    _incDatos = docs;
+    incRenderStats(docs);
+    incRenderGrafTipo(docs);
+    incRenderTopAlumnos(docs);
+    incRenderMapaCalor(docs);
+  } catch(e) { console.error(e); }
+}
+
+function incRenderStats(docs) {
+  const cont = document.getElementById('incStats');
+  if (!cont) return;
+  const total = docs.length;
+  const conductas = docs.filter(d=>d.tipo==='conducta').length;
+  const notif_ = docs.filter(d=>d.notificarPadre).length;
+  const gradoMax = incMaxGrupo(docs,'grado');
+  cont.innerHTML = [
+    { num: total, label: 'Total incidencias', color:'#E53935', icono:'📓' },
+    { num: conductas, label: 'Por conducta', color:'#F57C00', icono:'🔴' },
+    { num: notif_, label: 'Notificadas al padre', color:'#1565C0', icono:'📲' },
+    { num: gradoMax||'—', label: 'Grado más incidencias', color:'#6A1B9A', icono:'🏫' },
+  ].map(s=>`
+    <div style="background:var(--gris-bg);border:1px solid var(--borde);border-radius:12px;padding:16px;text-align:center;">
+      <div style="font-size:22px;margin-bottom:6px;">${s.icono}</div>
+      <div style="font-size:26px;font-weight:800;color:${s.color};line-height:1;">${s.num}</div>
+      <div style="font-size:11px;color:var(--texto-suave);margin-top:4px;">${s.label}</div>
+    </div>`).join('');
+}
+
+function incMaxGrupo(docs, campo) {
+  const cnt = {}; docs.forEach(d=>{ cnt[d[campo]]=(cnt[d[campo]]||0)+1; });
+  return Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0]?.[0]||null;
+}
+
+function incRenderGrafTipo(docs) {
+  const cont = document.getElementById('incGrafTipo');
+  if (!cont) return;
+  const tipos = Object.keys(_incTipos);
+  const max = Math.max(...tipos.map(t=>docs.filter(d=>d.tipo===t).length),1);
+  cont.innerHTML = tipos.map(t=>{
+    const cnt = docs.filter(d=>d.tipo===t).length;
+    const pct = Math.round(cnt/max*100);
+    const { label, color, bg, icono } = _incTipos[t];
+    return `<div style="margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+        <span>${icono} ${label}</span><span style="font-weight:700;color:${color};">${cnt}</span>
+      </div>
+      <div style="height:8px;background:${bg};border-radius:99px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:99px;transition:width .5s;"></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function incRenderTopAlumnos(docs) {
+  const cont = document.getElementById('incTopAlumnos');
+  if (!cont) return;
+  const cnt = {}; const info = {};
+  docs.forEach(d=>{ cnt[d.estudianteId]=(cnt[d.estudianteId]||0)+1; info[d.estudianteId]=d; });
+  const top = Object.entries(cnt).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const max = top[0]?.[1]||1;
+  cont.innerHTML = top.length ? top.map(([id,n],i)=>{
+    const d = info[id];
+    const pct = Math.round(n/max*100);
+    return `<div style="margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
+        <span style="font-weight:600;">${i+1}. ${d.estudianteNombre}</span>
+        <span style="font-weight:700;color:#E53935;">${n}</span>
+      </div>
+      <div style="font-size:10px;color:var(--texto-suave);margin-bottom:3px;">${d.grado} — Sección ${d.seccion}</div>
+      <div style="height:6px;background:#FFEBEE;border-radius:99px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:#E53935;border-radius:99px;"></div>
+      </div>
+    </div>`;
+  }).join('') : '<div style="font-size:13px;color:var(--texto-suave);padding:8px 0;">Sin datos este mes.</div>';
+}
+
+function incRenderMapaCalor(docs) {
+  const cont = document.getElementById('incMapaCalor');
+  if (!cont) return;
+  const grados = [...new Set(docs.map(d=>d.grado))].sort();
+  const secciones = [...new Set(docs.map(d=>d.seccion))].sort();
+  if (!grados.length) { cont.innerHTML='<div style="font-size:13px;color:var(--texto-suave);">Sin datos.</div>'; return; }
+  const max = Math.max(...grados.flatMap(g=>secciones.map(s=>docs.filter(d=>d.grado===g&&d.seccion===s).length)),1);
+  const hdr = `<tr><th style="padding:6px 10px;font-size:11px;color:var(--texto-suave);">Grado/Sec</th>${secciones.map(s=>`<th style="padding:6px 10px;font-size:11px;color:var(--texto-suave);">Sec ${s}</th>`).join('')}</tr>`;
+  const rows = grados.map(g=>`<tr><td style="padding:6px 10px;font-size:12px;font-weight:700;">${g}</td>${secciones.map(s=>{
+    const n=docs.filter(d=>d.grado===g&&d.seccion===s).length;
+    const int=Math.round(n/max*255);
+    const bg=n===0?'#f5f5f5':`rgba(229,57,53,${(n/max*.7+.1).toFixed(2)})`;
+    const col=n/max>.5?'#fff':'#333';
+    return `<td style="padding:6px 10px;text-align:center;font-size:13px;font-weight:700;background:${bg};color:${col};border-radius:6px;">${n||'—'}</td>`;
+  }).join('')}</tr>`).join('');
+  cont.innerHTML = `<table style="width:100%;border-collapse:separate;border-spacing:4px;">${hdr}${rows}</table>`;
+}
+
+async function incCargarHistorial() {
+  const cont = document.getElementById('incHistorial');
+  if (!cont) return;
+  cont.innerHTML = '<div style="font-size:13px;color:var(--texto-suave);padding:8px;">Cargando...</div>';
+  try {
+    const docs = await fsQuery('incidencias', FB.orderBy('createdAt','desc'), FB.limit(20));
+    if (!docs.length) { cont.innerHTML='<div style="font-size:13px;color:var(--texto-suave);padding:8px;">Sin incidencias registradas.</div>'; return; }
+    cont.innerHTML = docs.map(d=>{
+      const t = _incTipos[d.tipo]||_incTipos.otro;
+      return `<div style="background:${t.bg};border:1px solid ${t.color}33;border-left:4px solid ${t.color};border-radius:10px;padding:12px 14px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:13px;font-weight:700;color:var(--texto);">${t.icono} ${d.estudianteNombre} — ${d.grado} Sec. ${d.seccion}</div>
+            <div style="font-size:11px;color:var(--texto-suave);margin-top:2px;">${d.fecha} ${d.hora} · Prof. ${d.profesorNombre}</div>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span style="font-size:11px;padding:2px 8px;border-radius:99px;background:${t.color};color:#fff;font-weight:600;">${t.label}</span>
+            ${d.notificarPadre?'<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:#1565C0;color:#fff;font-weight:600;">📲 Padre notificado</span>':'<span style="font-size:11px;padding:2px 8px;border-radius:99px;background:#546E7A22;color:#546E7A;font-weight:600;">🔒 Interno</span>'}
+          </div>
+        </div>
+        <div style="font-size:13px;color:var(--texto);margin-top:8px;line-height:1.5;">${d.descripcion}</div>
+        ${d.foto?`<img src="${d.foto}" style="margin-top:8px;max-width:100%;max-height:180px;border-radius:8px;object-fit:cover;" alt="Evidencia">`:''}
+      </div>`;
+    }).join('');
+  } catch(e) { cont.innerHTML='<div style="font-size:13px;color:var(--texto-suave);padding:8px;">Error al cargar historial.</div>'; }
 }
 
 window.onload=init;
