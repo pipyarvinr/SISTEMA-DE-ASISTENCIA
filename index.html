@@ -76,6 +76,7 @@ function instalarApp() {
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 <!-- ══ FIREBASE ══ -->
 <script type="module">
@@ -433,6 +434,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
     <button class="nav-btn" id="nav_reportes" onclick="irPanel('reportes')"><span class="nav-icon">📊</span> Reportes</button>
     <button class="nav-btn" id="nav_refuerzo" onclick="irPanel('refuerzo')" style="display:none;"><span class="nav-icon">📌</span> Refuerzo</button>
     <button class="nav-btn" id="nav_incidencias" onclick="irPanel('incidencias')" style="display:none;"><span class="nav-icon">📓</span> Incidencias</button>
+    <button class="nav-btn" id="nav_permisos" onclick="irPanel('permisos')" style="display:none;"><span class="nav-icon">🚶</span> Permisos</button>
     <button class="nav-btn" id="nav_padre" onclick="irPanel('padre')"><span class="nav-icon">👪</span> Mi Hijo</button>
     <div class="sidebar-footer">
       <div class="user-hint" id="userHint"><strong>—</strong></div>
@@ -518,7 +520,45 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
         <div class="card">
           <div class="card-header">
             <span class="card-title">👨‍🎓 Estudiantes Registrados</span>
-            <button class="btn btn-sm" style="background:#e8000d;color:white;" onclick="imprimirQR()">🖨 Imprimir QR</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-sm" style="background:#e8000d;color:white;" onclick="imprimirQR()">🖨 Imprimir QR</button>
+              <button class="btn btn-sm" style="background:#1565C0;color:white;" onclick="importExcelMostrar()">📥 Importar Excel</button>
+            </div>
+          </div>
+          <!-- Modal importar Excel -->
+          <div id="importExcelPanel" style="display:none;background:var(--gris-bg);border:1.5px solid var(--borde);border-radius:12px;padding:16px;margin-bottom:14px;">
+            <div style="font-size:13px;font-weight:700;color:var(--texto);margin-bottom:12px;">📥 Importar estudiantes desde Excel</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+              <div>
+                <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Grado *</div>
+                <select id="importGrado" style="width:100%;padding:8px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--fondo);color:var(--texto);">
+                  <option value="">Seleccionar grado</option>
+                  <option>1ro</option><option>2do</option><option>3ro</option><option>4to</option><option>5to</option>
+                </select>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Sección *</div>
+                <select id="importSeccion" style="width:100%;padding:8px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--fondo);color:var(--texto);">
+                  <option value="">Seleccionar sección</option>
+                  <option>A</option><option>B</option><option>C</option><option>D</option><option>E</option>
+                </select>
+              </div>
+            </div>
+            <div style="background:#E3F2FD;border:1px solid #1565C020;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#1565C0;line-height:1.6;">
+              📋 <strong>Formato del Excel:</strong> El archivo debe tener estas 3 columnas en orden:<br>
+              <strong>A: nombre</strong> — Apellidos y nombres completos<br>
+              <strong>B: dniPadre</strong> — DNI del apoderado (8 dígitos)<br>
+              <strong>C: telefono</strong> — Número sin código de país (ej: 987654321)
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <button onclick="importDescargarPlantilla()" style="padding:8px 14px;background:var(--fondo);border:1.5px solid var(--borde);border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;color:var(--texto);">📄 Descargar plantilla</button>
+              <input type="file" id="importArchivoExcel" accept=".xlsx,.xls,.csv" style="font-size:12px;flex:1;">
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <button onclick="importProcesar()" style="flex:1;padding:10px;background:#1565C0;color:white;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">📥 Importar estudiantes</button>
+              <button onclick="document.getElementById('importExcelPanel').style.display='none'" style="padding:10px 16px;background:var(--gris-bg);border:1px solid var(--borde);border-radius:8px;font-size:13px;cursor:pointer;color:var(--texto);">Cancelar</button>
+            </div>
+            <div id="importProgreso" style="display:none;margin-top:10px;"></div>
           </div>
           <div class="filters">
             <select id="fGradoAdmin" onchange="renderEstudiantes()"><option value="">Todos los grados</option><option value="1ro">1ro</option><option value="2do">2do</option><option value="3ro">3ro</option><option value="4to">4to</option><option value="5to">5to</option></select>
@@ -677,6 +717,30 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
 
       <!-- ══ PANEL PADRE ══ -->
       <!-- ══ PANEL INCIDENCIAS ══ -->
+      <!-- ══ PANEL PERMISOS BAÑO ══ -->
+      <div id="panel_permisos" class="hide">
+        <div class="card" style="margin-bottom:18px;">
+          <div class="card-header"><span class="card-title">🚶 Permisos al Baño — Hoy</span>
+            <button onclick="permCargarPanel()" style="padding:5px 12px;border:1px solid var(--borde);border-radius:8px;background:var(--gris-bg);color:var(--texto);font-size:12px;cursor:pointer;">🔄 Actualizar</button>
+          </div>
+          <!-- Buscador -->
+          <div style="margin-bottom:14px;position:relative;">
+            <input type="text" id="permBuscar" placeholder="Buscar estudiante por nombre..." style="width:100%;padding:9px 12px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--gris-bg);color:var(--texto);" oninput="permBuscarEstudiante()">
+            <div id="permResultados" style="display:none;position:absolute;z-index:50;background:var(--fondo);border:1px solid var(--borde);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:200px;overflow-y:auto;width:100%;margin-top:2px;"></div>
+          </div>
+          <!-- Lista de permisos activos -->
+          <div style="margin-bottom:10px;">
+            <div style="font-size:11px;font-weight:700;color:var(--rojo);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🔴 Fuera del aula ahora</div>
+            <div id="permActivosLista"></div>
+          </div>
+          <!-- Lista de permisos del día -->
+          <div>
+            <div style="font-size:11px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">📋 Registro del día</div>
+            <div id="permHistorialHoy"></div>
+          </div>
+        </div>
+      </div>
+
       <div id="panel_incidencias" class="hide">
         <!-- REGISTRO -->
         <div class="card" style="margin-bottom:18px;">
@@ -1222,10 +1286,10 @@ function entrarApp() {
   document.getElementById('loginBtn').textContent = '🔐 Ingresar';
   const iconos = { admin:'👑', auxiliar:'🛡️', tutor:'📖', padre:'👪' };
   document.getElementById('sessionBadge').textContent = (iconos[sesion.rol]||'') + ' ' + sesion.nombre;
-  const todos = ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_padre','nav_refuerzo','nav_incidencias'];
+  const todos = ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_padre','nav_refuerzo','nav_incidencias','nav_permisos'];
   todos.forEach(n => { const el=document.getElementById(n); if(el) el.style.display=''; });
   if (sesion.rol === 'padre') {
-    ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_refuerzo','nav_incidencias'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_refuerzo','nav_incidencias','nav_permisos'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     ['mn_admin','mn_asistencia','mn_justificaciones','mn_reportes'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('timerBanner').style.display = 'none';
   } else if (sesion.rol === 'tutor') {
@@ -1237,7 +1301,7 @@ function entrarApp() {
     ['mn_admin','mn_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('timerBanner').style.display = '';
   } else if (sesion.rol === 'admin') {
-    ['nav_padre','nav_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['nav_padre','nav_refuerzo','nav_permisos'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('mn_padre').style.display = 'none';
   }
   const hints = { admin:'<strong>👑 Administrador</strong>Gestión completa del sistema.', auxiliar:'<strong>🛡️ Auxiliar</strong>Registra asistencia y justificaciones.', tutor:'<strong>📖 Tutor</strong>Revisa tu aula y aprueba justificaciones.', padre:'<strong>👪 Apoderado</strong>Consulta la asistencia de tu hijo.' };
@@ -1294,7 +1358,7 @@ function actualizarFecha() {
     new Date().toLocaleDateString('es-PE',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
 }
 
-const paneles = ['admin','asistencia','justificaciones','reportes','padre','refuerzo','incidencias'];
+const paneles = ['admin','asistencia','justificaciones','reportes','padre','refuerzo','incidencias','permisos'];
 function irPanel(panel) {
   paneles.forEach(p => {
     const el = document.getElementById('panel_'+p); if(el) el.classList.add('hide');
@@ -1304,7 +1368,7 @@ function irPanel(panel) {
   const el = document.getElementById('panel_'+panel); if(el) el.classList.remove('hide');
   const nav = document.getElementById('nav_'+panel); if(nav) nav.classList.add('active');
   const mn = document.getElementById('mn_'+panel); if(mn) mn.classList.add('active');
-  const tits = { admin:'Administración', asistencia:'Control de Asistencia', justificaciones:'Justificaciones', reportes:'Reportes y Estadísticas', padre:'Mi Hijo/a', refuerzo:'Refuerzo Escolar', incidencias:'Cuaderno de Incidencias' };
+  const tits = { admin:'Administración', asistencia:'Control de Asistencia', justificaciones:'Justificaciones', reportes:'Reportes y Estadísticas', padre:'Mi Hijo/a', refuerzo:'Refuerzo Escolar', incidencias:'Cuaderno de Incidencias', permisos:'Permisos al Baño' };
   document.getElementById('topbarTitle').textContent = tits[panel] || '';
   if (panel==='admin') { renderEstudiantes(); renderListaUsuarios(); actualizarStats(); }
   if (panel==='asistencia') { renderListaAsistencia(); cargarTablaAsistencia(); renderAlertas(); }
@@ -1312,6 +1376,7 @@ function irPanel(panel) {
   if (panel==='reportes') { document.getElementById('tablaReporte').innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--texto-suave);">Selecciona los filtros y presiona 🔍 Buscar</td></tr>'; }
   if (panel==='refuerzo') { rfCargarPanel(); }
   if (panel==='incidencias') { incCargarPanel(); }
+  if (panel==='permisos') { permCargarPanel(); }
 }
 
 function iniciarSesion() {
@@ -3239,6 +3304,223 @@ async function incCargarHistorial() {
       </div>`;
     }).join('');
   } catch(e) { cont.innerHTML='<div style="font-size:13px;color:var(--texto-suave);padding:8px;">Error al cargar historial.</div>'; }
+}
+
+
+// ══ MÓDULO PERMISOS AL BAÑO ══
+const PERM_LIMITE = 3; // Alerta si supera este número
+
+async function permCargarPanel() {
+  await permRenderActivos();
+  await permRenderHistorial();
+}
+
+function permBuscarEstudiante() {
+  const q = document.getElementById('permBuscar').value.trim().toLowerCase();
+  const cont = document.getElementById('permResultados');
+  if (q.length < 2) { cont.style.display='none'; return; }
+  const lista = _estudiantesCache.filter(e => e.nombre.toLowerCase().includes(q)).slice(0,6);
+  if (!lista.length) { cont.style.display='none'; return; }
+  cont.style.display = 'block';
+  cont.innerHTML = lista.map(e => `
+    <div onclick="permRegistrarSalida('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')"
+      style="padding:9px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--borde);"
+      onmouseover="this.style.background='var(--gris-bg)'" onmouseout="this.style.background=''">
+      <div style="font-weight:600;">${e.nombre}</div>
+      <div style="font-size:11px;color:var(--texto-suave);">${e.grado} — Sección ${e.seccion}</div>
+    </div>`).join('');
+}
+
+async function permRegistrarSalida(id, nombre, grado, seccion) {
+  document.getElementById('permBuscar').value = '';
+  document.getElementById('permResultados').style.display = 'none';
+  const fecha = getFecha();
+  const hora = new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+  // Verificar cuántos permisos tiene hoy
+  try {
+    const hoy = await fsQuery('permisos', FB.where('estudianteId','==',id), FB.where('fecha','==',fecha));
+    const activo = hoy.find(p=>!p.horaRegreso);
+    if (activo) { notif(`⚠️ ${nombre} ya está fuera del aula`,'warning'); return; }
+    const totalHoy = hoy.length;
+    const data = {
+      estudianteId: id, estudianteNombre: nombre,
+      grado, seccion, fecha, horaSalida: hora,
+      horaRegreso: '', profesorNombre: sesion?.nombre||'',
+      profesorUid: sesion?.uid||'', alerta: totalHoy >= PERM_LIMITE,
+      createdAt: new Date().toISOString()
+    };
+    await fsAdd('permisos', data);
+    if (totalHoy >= PERM_LIMITE) {
+      notif(`🚨 ALERTA: ${nombre} ya tiene ${totalHoy+1} permisos hoy`,'error');
+    } else {
+      notif(`✅ ${nombre} salió al baño a las ${hora}`,'success');
+    }
+    await permCargarPanel();
+  } catch(e) { console.error(e); notif('❌ Error: '+(e.message||e.code),'error'); }
+}
+
+async function permRegistrarRegreso(docId, nombre) {
+  const hora = new Date().toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
+  try {
+    await fsUpdate('permisos', docId, { horaRegreso: hora });
+    notif(`✅ ${nombre} regresó a las ${hora}`,'success');
+    await permCargarPanel();
+  } catch(e) { notif('❌ Error al registrar regreso','error'); }
+}
+
+async function permRenderActivos() {
+  const cont = document.getElementById('permActivosLista');
+  if (!cont) return;
+  try {
+    const fecha = getFecha();
+    const docs = await fsQuery('permisos', FB.where('fecha','==',fecha), FB.where('horaRegreso','==',''));
+    if (!docs.length) {
+      cont.innerHTML = '<div style="font-size:13px;color:var(--texto-suave);padding:10px 0;">Ningún estudiante fuera del aula ahora.</div>';
+      return;
+    }
+    cont.innerHTML = docs.map(d => `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff3f3;border:1.5px solid #e8000d;border-radius:10px;padding:10px 14px;margin-bottom:8px;">
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--texto);">🚶 ${d.estudianteNombre}</div>
+          <div style="font-size:11px;color:var(--texto-suave);margin-top:2px;">${d.grado} — Sec. ${d.seccion} · Salió: ${d.horaSalida} · Prof. ${d.profesorNombre}</div>
+          ${d.alerta?'<div style="font-size:11px;color:#e8000d;font-weight:700;margin-top:3px;">🚨 Más de '+PERM_LIMITE+' permisos hoy</div>':''}
+        </div>
+        <button onclick="permRegistrarRegreso('${d.id}','${d.estudianteNombre.replace(/'/g,"\\'")}');event.stopPropagation();"
+          style="padding:7px 14px;background:#e8000d;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
+          ✅ Regresó
+        </button>
+      </div>`).join('');
+  } catch(e) { cont.innerHTML='<div style="font-size:13px;color:var(--texto-suave);">Error al cargar.</div>'; }
+}
+
+async function permRenderHistorial() {
+  const cont = document.getElementById('permHistorialHoy');
+  if (!cont) return;
+  try {
+    const fecha = getFecha();
+    const docs = await fsQuery('permisos', FB.where('fecha','==',fecha));
+    if (!docs.length) { cont.innerHTML='<div style="font-size:13px;color:var(--texto-suave);padding:8px 0;">Sin permisos registrados hoy.</div>'; return; }
+    // Agrupar por estudiante para mostrar conteo
+    const cnt = {}; docs.forEach(d=>{ cnt[d.estudianteId]=(cnt[d.estudianteId]||0)+1; });
+    cont.innerHTML = docs.map(d => {
+      const total = cnt[d.estudianteId];
+      const alerta = total >= PERM_LIMITE;
+      const bg = alerta?'#fff3f3':'var(--gris-bg)';
+      const borde = alerta?'#e8000d33':'var(--borde)';
+      return `<div style="display:flex;align-items:center;gap:10px;background:${bg};border:1px solid ${borde};border-radius:8px;padding:8px 12px;margin-bottom:6px;">
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;color:var(--texto);">${d.estudianteNombre} <span style="font-size:11px;color:var(--texto-suave);">— ${d.grado} Sec. ${d.seccion}</span></div>
+          <div style="font-size:11px;color:var(--texto-suave);margin-top:2px;">Salida: ${d.horaSalida} · Regreso: ${d.horaRegreso||'⏳ aún fuera'}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:${alerta?'#e8000d':'var(--texto)'};">${total}</div>
+          <div style="font-size:9px;color:var(--texto-suave);">permisos</div>
+          ${alerta?'<div style="font-size:10px;color:#e8000d;font-weight:700;">🚨</div>':''}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { cont.innerHTML='<div style="font-size:13px;color:var(--texto-suave);">Error al cargar.</div>'; }
+}
+
+
+// ══ MÓDULO IMPORTAR EXCEL ══
+function importExcelMostrar() {
+  const panel = document.getElementById('importExcelPanel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+}
+
+function importDescargarPlantilla() {
+  const csv = 'nombre,dniPadre,telefono\nJuan Pérez García,45678901,987654321\nMaría López Ríos,45678902,976543210';
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url;
+  a.download = 'plantilla_estudiantes.csv'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function importProcesar() {
+  const grado = document.getElementById('importGrado').value;
+  const seccion = document.getElementById('importSeccion').value;
+  const fileInput = document.getElementById('importArchivoExcel');
+  const progreso = document.getElementById('importProgreso');
+  if (!grado) { notif('⚠️ Selecciona el grado','warning'); return; }
+  if (!seccion) { notif('⚠️ Selecciona la sección','warning'); return; }
+  if (!fileInput.files.length) { notif('⚠️ Selecciona un archivo Excel o CSV','warning'); return; }
+  const file = fileInput.files[0];
+  progreso.style.display = 'block';
+  progreso.innerHTML = '<div style="font-size:13px;color:var(--texto-suave);">⏳ Leyendo archivo...</div>';
+  try {
+    const rows = await importLeerArchivo(file);
+    if (!rows.length) { notif('⚠️ El archivo está vacío o no tiene el formato correcto','warning'); return; }
+    let ok=0, duplicados=0, errores=0;
+    progreso.innerHTML = `<div style="font-size:13px;color:var(--texto-suave);">⏳ Importando 0 de ${rows.length}...</div>`;
+    for (let i=0; i<rows.length; i++) {
+      const row = rows[i];
+      const nombre = (row[0]||'').toString().trim();
+      const dniPadre = (row[1]||'').toString().trim().replace(/\D/g,'');
+      const telRaw = (row[2]||'').toString().trim().replace(/\D/g,'');
+      const telefono = telRaw ? '51'+telRaw : '';
+      if (!nombre || !dniPadre) { errores++; continue; }
+      try {
+        // Verificar duplicado en Firestore directamente
+        const existe = await fsQuery('estudiantes',
+          FB.where('nombre','==',nombre),
+          FB.where('grado','==',grado),
+          FB.where('seccion','==',seccion)
+        );
+        if (existe.length) { duplicados++; continue; }
+        await fsAdd('estudiantes', { nombre, grado, seccion, dniPadre, telefono });
+        ok++;
+      } catch(e) { errores++; }
+      progreso.innerHTML = `<div style="font-size:13px;color:var(--texto-suave);">⏳ Importando ${i+1} de ${rows.length}...</div>`;
+    }
+    // Limpiar caché para que recargue
+    _estudiantesCache = [];
+    progreso.innerHTML = `<div style="background:#e8f5e9;border:1px solid #2e7d32;border-radius:8px;padding:10px 12px;font-size:13px;color:#2e7d32;font-weight:600;">
+      ✅ Importación completada<br>
+      <span style="font-weight:400;">✓ ${ok} agregados · ⚠️ ${duplicados} duplicados omitidos · ❌ ${errores} errores</span>
+    </div>`;
+    notif(`✅ ${ok} estudiantes importados a ${grado} "${seccion}"`, 'success');
+    renderEstudiantes();
+    // Limpiar formulario
+    fileInput.value=''; document.getElementById('importGrado').value=''; document.getElementById('importSeccion').value='';
+  } catch(e) {
+    console.error(e);
+    progreso.innerHTML = `<div style="font-size:13px;color:#e8000d;">❌ Error al leer el archivo: ${e.message}</div>`;
+  }
+}
+
+async function importLeerArchivo(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    // CSV
+    if (file.name.endsWith('.csv')) {
+      reader.onload = e => {
+        const text = e.target.result;
+        const lines = text.split(/\r?\n/).filter(l=>l.trim());
+        const rows = lines.slice(1).map(l => l.split(',').map(c=>c.trim().replace(/^"|"$/g,'')));
+        resolve(rows.filter(r=>r.length>=2));
+      };
+      reader.onerror = reject;
+      reader.readAsText(file, 'UTF-8');
+    } else {
+      // XLSX — usar SheetJS desde CDN si está disponible
+      reader.onload = e => {
+        try {
+          if (typeof XLSX !== 'undefined') {
+            const wb = XLSX.read(e.target.result, { type:'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const data = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+            resolve(data.slice(1).filter(r=>r[0]));
+          } else {
+            reject(new Error('Para archivos .xlsx usa formato .csv. Descarga la plantilla CSV.'));
+          }
+        } catch(err) { reject(err); }
+      };
+      reader.onerror = reject;
+      reader.readAsArrayBuffer(file);
+    }
+  });
 }
 
 window.onload=init;
