@@ -671,6 +671,26 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
             📢 Publicar horario para los padres seleccionados
           </button>
         </div>
+        <!-- ══ CARD ASISTENCIA REFUERZO ══ -->
+        <div class="card" id="rfAsistenciaCard" style="margin-bottom:18px;">
+          <div class="card-header"><span class="card-title">✅ Marcar Asistencia — Sesión de Hoy</span></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;">
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Hora inicio</div>
+              <input type="time" id="rfHoraInicio" style="width:100%;padding:8px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--gris-bg);color:var(--texto);">
+            </div>
+            <div>
+              <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Hora fin</div>
+              <input type="time" id="rfHoraFin" style="width:100%;padding:8px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--gris-bg);color:var(--texto);">
+            </div>
+          </div>
+          <button onclick="rfIniciarSesionHoy()" style="width:100%;padding:11px;background:linear-gradient(135deg,#1a7a3a,#27ae60);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:14px;">▶ Iniciar sesión de hoy</button>
+          <div id="rfListaAsistencia" style="display:none;">
+            <div style="font-size:11px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">Estudiantes convocados</div>
+            <div id="rfAsistenciaEstudiantes" style="display:flex;flex-direction:column;gap:6px;"></div>
+            <button onclick="rfGuardarAsistencia()" style="width:100%;margin-top:14px;padding:11px;background:linear-gradient(135deg,#e8000d,#b00008);color:white;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">💾 Guardar asistencia</button>
+          </div>
+        </div>
         <!-- Preview del horario publicado -->
         <div class="card" id="rfPreviewCard" style="display:none;">
           <div class="card-header"><span class="card-title">👁 Vista previa — lo que verán los padres</span></div>
@@ -1785,7 +1805,11 @@ async function desmarcarAsistencia(estudianteId, nombre) {
 
 async function cargarTablaAsistencia() {
   const fecha = getFecha();
-  const asist = await fsQuery('asistencia', FB.where('fecha','==',fecha));
+  let asist = await fsQuery('asistencia', FB.where('fecha','==',fecha));
+  if (sesion?.rol === 'tutor' || sesion?.rol === 'auxiliar') {
+    if (sesion?.grados?.length) asist = asist.filter(a => sesion.grados.includes(a.grado));
+    if (sesion?.secciones?.length) asist = asist.filter(a => sesion.secciones.includes(a.seccion));
+  }
   const tbody = document.getElementById('tablaAsistencia');
   if (!tbody) return;
   if (!asist.length) { tbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--texto-suave);padding:18px;">Sin registros hoy</td></tr>'; return; }
@@ -1965,6 +1989,14 @@ async function renderHijosInfo(hijos) {
     try {
       const rf = await rfCargarVistaPadre(h.id);
       if (rf) refuerzosMap[h.id] = rf;
+    } catch(e) {}
+  }
+  // Cargar asistencia al refuerzo (ultimas 10 sesiones por hijo)
+  const rfAsistenciaMap = {};
+  for (const h of hijos) {
+    try {
+      const docs = await fsQuery('asistencia_refuerzo', FB.where('estudianteId','==',h.id));
+      if (docs.length) rfAsistenciaMap[h.id] = docs.sort((a,b)=>a.fecha<b.fecha?1:-1).slice(0,10);
     } catch(e) {}
   }
   // Cargar incidencias notificadas al padre (solo las marcadas como notificarPadre=true)
@@ -2154,6 +2186,10 @@ async function renderHijosInfo(hijos) {
         </div>
         <div style="display:flex;gap:5px;margin-bottom:8px;">${colsRf}</div>
         ${rfDoc.mensaje?`<div style="background:#fff8e1;border-left:3px solid #f39c12;border-radius:0 8px 8px 0;padding:8px 10px;font-size:12px;color:#784212;font-weight:500;">📢 ${rfDoc.mensaje}</div>`:''}
+      <div style="margin-top:10px;">
+          <div style="font-size:10px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">📋 Historial de asistencia al refuerzo</div>
+          ${(rfAsistenciaMap[h.id]||[]).length ? (rfAsistenciaMap[h.id]||[]).map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;background:${r.estado==='presente'?'#e8f5e9':'#ffe8e8'};border-left:3px solid ${r.estado==='presente'?'#1a7a3a':'#e8000d'};border-radius:0 8px 8px 0;padding:7px 10px;margin-bottom:4px;font-size:12px;"><span style="font-weight:600;color:var(--texto);">${r.fecha}</span><span style="font-size:11px;color:var(--texto-suave);">${r.horaInicio}–${r.horaFin}</span><span style="font-weight:700;color:${r.estado==='presente'?'#1a7a3a':'#e8000d'};">${r.estado==='presente'?'✅ Presente':'❌ Ausente'}</span></div>`).join('') : '<div style="font-size:12px;color:var(--texto-suave);padding:6px 0;">Sin registros aún.</div>'}
+        </div>
       </div>`;
     }
     // — Incidencias notificadas al padre —
@@ -3050,6 +3086,72 @@ function rfRenderPreview(data) {
     ${data.mensaje ? `<div style="background:var(--gris-bg);border-left:3px solid #e8000d;border-radius:0 8px 8px 0;padding:9px 12px;font-size:12px;color:var(--texto);">📢 ${data.mensaje}</div>` : ''}`;
 }
 
+
+// ══ ASISTENCIA REFUERZO — funciones de marcado ══
+let _rfConvocados = [];
+let _rfHoraInicioSesion = '', _rfHoraFinSesion = '';
+
+async function rfIniciarSesionHoy() {
+  const hi = document.getElementById('rfHoraInicio')?.value;
+  const hf = document.getElementById('rfHoraFin')?.value;
+  if (!hi || !hf) { notif('26a0Fe0f Ingresa hora de inicio y fin','warning'); return; }
+  if (hi >= hf) { notif('26a0Fe0f La hora fin debe ser mayor al inicio','warning'); return; }
+  _rfHoraInicioSesion = hi; _rfHoraFinSesion = hf;
+  try {
+    const docs = await fsQuery('refuerzo', FB.where('tutorUid','==', sesion.uid));
+    if (!docs.length) { notif('26a0Fe0f Primero publica el horario de refuerzo','warning'); return; }
+    const rfDoc = docs[0];
+    let lista = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
+    _rfConvocados = lista.filter(e => (rfDoc.estudiantesIds||[]).includes(e.id));
+    const cont = document.getElementById('rfAsistenciaEstudiantes');
+    const fecha = getFecha();
+    const yaReg = await fsQuery('asistencia_refuerzo', FB.where('fecha','==',fecha), FB.where('tutorUid','==',sesion.uid));
+    const yaSet = new Set(yaReg.map(r=>r.estudianteId));
+    cont.innerHTML = _rfConvocados.map(e => {
+      const marcado = yaSet.has(e.id);
+      const regExist = yaReg.find(r=>r.estudianteId===e.id);
+      const estadoActual = regExist?.estado || '';
+      return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--gris-bg);border:1.5px solid var(--borde);border-radius:10px;padding:9px 12px;" id="rfrow_${e.id}">
+        <div>
+          <div style="font-weight:700;font-size:13px;color:var(--texto);">${e.nombre}</div>
+          <div style="font-size:11px;color:var(--texto-suave);">${e.grado} 2014 Secci00f3n ${e.seccion}</div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button onclick="rfMarcar('${e.id}','presente')" style="padding:6px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:${estadoActual==='presente'?'#1a7a3a':'#e8f5e9'};color:${estadoActual==='presente'?'#fff':'#1a7a3a'};" id="rfbtn_p_${e.id}">2705 Presente</button>
+          <button onclick="rfMarcar('${e.id}','ausente')" style="padding:6px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:${estadoActual==='ausente'?'#e8000d':'#ffe8e8'};color:${estadoActual==='ausente'?'#fff':'#e8000d'};" id="rfbtn_a_${e.id}">274c Ausente</button>
+        </div>
+      </div>`;
+    }).join('');
+    document.getElementById('rfListaAsistencia').style.display = '';
+    notif('25b6 Sesi00f3n iniciada 2014 marca la asistencia','success');
+  } catch(e) { console.error(e); notif('274c Error al iniciar sesi00f3n','error'); }
+}
+
+const _rfMarcados = {};
+function rfMarcar(id, estado) {
+  _rfMarcados[id] = estado;
+  const bp = document.getElementById('rfbtn_p_'+id);
+  const ba = document.getElementById('rfbtn_a_'+id);
+  if (bp) { bp.style.background = estado==='presente'?'#1a7a3a':'#e8f5e9'; bp.style.color = estado==='presente'?'#fff':'#1a7a3a'; }
+  if (ba) { ba.style.background = estado==='ausente'?'#e8000d':'#ffe8e8'; ba.style.color = estado==='ausente'?'#fff':'#e8000d'; }
+}
+
+async function rfGuardarAsistencia() {
+  const marcados = Object.keys(_rfMarcados);
+  if (!marcados.length) { notif('26a0Fe0f Marca al menos un estudiante','warning'); return; }
+  const fecha = getFecha();
+  try {
+    for (const estudianteId of marcados) {
+      const estado = _rfMarcados[estudianteId];
+      const est = _rfConvocados.find(e=>e.id===estudianteId);
+      const yaReg = await fsQuery('asistencia_refuerzo', FB.where('fecha','==',fecha), FB.where('estudianteId','==',estudianteId), FB.where('tutorUid','==',sesion.uid));
+      const data = { estudianteId, nombre: est?.nombre||'', grado: est?.grado||'', seccion: est?.seccion||'', fecha, horaInicio: _rfHoraInicioSesion, horaFin: _rfHoraFinSesion, estado, tutorUid: sesion.uid, tutorNombre: sesion.nombre||'', registradoPor: sesion.nombre||sesion.uid };
+      if (yaReg.length) await fsUpdate('asistencia_refuerzo', yaReg[0].id, { estado, horaInicio: _rfHoraInicioSesion, horaFin: _rfHoraFinSesion });
+      else await fsAdd('asistencia_refuerzo', data);
+    }
+    notif('2705 Asistencia de refuerzo guardada','success');
+  } catch(e) { console.error(e); notif('274c Error al guardar','error'); }
+}
 // ══ VISTA DEL PADRE — cargar horario de refuerzo si su hijo está convocado ══
 async function rfCargarVistaPadre(hijoId) {
   try {
