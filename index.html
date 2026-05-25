@@ -1711,11 +1711,11 @@ async function registrarAsistencia(qrData) {
     const hora = ahora.toLocaleTimeString('es-PE');
     const hh = ahora.getHours(), mm = ahora.getMinutes();
     const totalMin = hh * 60 + mm;
-    // Puntual: 12:50-13:05 | Tardanza: 13:06-13:30 | Ausente: desde 13:31
+    // Puntual: 12:50-13:05 | Tardanza: 13:06+ | Ausente: solo manual o finalizar sesión
     let estado;
     if (totalMin >= 770 && totalMin <= 785) estado = 'puntual';       // 12:50-13:05
-    else if (totalMin >= 786 && totalMin <= 810) estado = 'tardanza';  // 13:06-13:30
-    else estado = 'ausente';                                           // 13:31 en adelante (o antes de 12:50)
+    else if (totalMin >= 786 && totalMin <= 810) estado = 'tardanza';  // 13:06-14:00
+    else estado = 'tardanza';                                           // fuera de rango = tardanza (nunca ausente por QR)
     await fsAdd('asistencia',{ estudianteId, nombre, grado, seccion, fecha, hora, estado, registradoPor: sesion?.uid||'padre' });
     const estadoLabel = estado==='puntual'?'✅ Puntual':estado==='tardanza'?'⏰ Tardanza':'❌ Ausente';
     notif(`${estadoLabel} — ${nombre} — ${grado} "${seccion}" — ${hora}`,'success');
