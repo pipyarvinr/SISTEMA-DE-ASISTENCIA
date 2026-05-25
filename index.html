@@ -409,6 +409,11 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
       Ingresa con tu correo y contraseña institucional.<br>
       <span style="color:#555">Contacta al administrador si no tienes acceso.</span>
     </div>
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,.15);text-align:center;">
+      <div style="font-size:11px;color:rgba(255,255,255,.5);margin-bottom:3px;">⚡ Desarrollado por</div>
+      <div style="font-size:13px;font-weight:700;color:rgba(255,255,255,.85);">Yarvin RS</div>
+      <div style="font-size:10px;color:rgba(255,255,255,.45);margin-top:2px;">Profesor de Innovación Pedagógica</div>
+    </div>
   </div>
 </div>
 
@@ -438,6 +443,11 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
     <button class="nav-btn" id="nav_padre" onclick="irPanel('padre')"><span class="nav-icon">👪</span> Mi Hijo</button>
     <div class="sidebar-footer">
       <div class="user-hint" id="userHint"><strong>—</strong></div>
+      <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);text-align:center;">
+        <div style="font-size:9px;color:rgba(255,255,255,.35);margin-bottom:2px;">⚡ Desarrollado por</div>
+        <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.6);">Yarvin RS</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.3);margin-top:1px;">Profesor de Innovación Pedagógica</div>
+      </div>
     </div>
   </aside>
 
@@ -3430,12 +3440,16 @@ function importExcelMostrar() {
 }
 
 function importDescargarPlantilla() {
-  const csv = 'nombre,dniPadre,telefono\nJuan Pérez García,45678901,987654321\nMaría López Ríos,45678902,976543210';
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url;
-  a.download = 'plantilla_estudiantes.csv'; a.click();
-  URL.revokeObjectURL(url);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['nombre', 'dniPadre', 'telefono'],
+    ['Juan Pérez García', '45678901', '987654321'],
+    ['María López Ríos', '45678902', '976543210'],
+  ]);
+  // Ancho de columnas
+  ws['!cols'] = [{ wch: 35 }, { wch: 15 }, { wch: 15 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'Estudiantes');
+  XLSX.writeFile(wb, 'plantilla_estudiantes.xlsx');
 }
 
 async function importProcesar() {
