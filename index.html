@@ -1438,7 +1438,8 @@ async function finalizarYMarcarAusentes() {
   finalizarSesion();
   notif('⏳ Marcando ausentes…','info');
   try {
-    let todos = await fsGetAll('estudiantes');
+    let todos = _estudiantesCache?.length ? _estudiantesCache : await fsGetAll('estudiantes');
+    if (!_estudiantesCache?.length) _estudiantesCache = todos;
     // BUG #2 FIX: auxiliar/tutor solo marca ausentes de sus grados y secciones asignadas
     if (sesion?.rol !== 'admin') {
       if (sesion?.grados?.length) todos = todos.filter(e=>sesion.grados.includes(e.grado));
@@ -1757,8 +1758,8 @@ async function renderListaAsistencia() {
     c.innerHTML='<div style="padding:24px;text-align:center;color:var(--texto-suave);grid-column:1/-1;">⚠️ No tienes grados ni secciones asignados.<br>Pide al Administrador que configure tu cuenta.</div>';
     return;
   }
-  let lista = await fsGetAll('estudiantes');
-  _estudiantesCache = lista;
+  let lista = _estudiantesCache?.length ? _estudiantesCache : await fsGetAll('estudiantes');
+  if (!_estudiantesCache?.length) _estudiantesCache = lista;
   const gf = document.getElementById('fGradoAux')?.value;
   const sf = document.getElementById('fSecAux')?.value;
   if (sesion?.grados?.length) lista = lista.filter(e=>sesion.grados.includes(e.grado));
@@ -1766,8 +1767,8 @@ async function renderListaAsistencia() {
   if (gf) lista = lista.filter(e=>e.grado===gf);
   if (sf) lista = lista.filter(e=>e.seccion===sf);
   const fecha = getFecha();
-  const asist = await fsQuery('asistencia', FB.where('fecha','==',fecha));
-  _asistenciaHoyCache = asist;
+  const asist = _asistenciaHoyCache?.length ? _asistenciaHoyCache : await fsQuery('asistencia', FB.where('fecha','==',fecha));
+  if (!_asistenciaHoyCache?.length) _asistenciaHoyCache = asist;
   const presSet = new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
   const ausenteSet = new Set(asist.filter(a=>a.estado==='ausente').map(a=>a.estudianteId));
   const justifs = await fsQuery('justificaciones', FB.where('fecha','==',fecha), FB.where('estado','==','aprobado'));
@@ -2497,8 +2498,9 @@ async function generarReporte() {
   if(sesion?.secciones?.length) estudiantes=estudiantes.filter(e=>sesion.secciones.includes(e.seccion));
   if(grado) estudiantes=estudiantes.filter(e=>e.grado===grado);
   if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
-  const asistencias=await fsGetAll('asistencia');
-  const justifs=await fsGetAll('justificaciones');
+  const _qAsist = fi&&ff ? [FB.where('fecha','>=',fi.split('-').reverse().join('/')), FB.where('fecha','<=',ff.split('-').reverse().join('/'))] : [];
+  const asistencias = _qAsist.length ? await fsQuery('asistencia',..._qAsist) : await fsGetAll('asistencia');
+  const justifs = _qAsist.length ? await fsQuery('justificaciones',..._qAsist) : await fsGetAll('justificaciones');
   const filtrarFecha=(f)=>{
     if(!f) return false;
     if(!fi&&!ff) return true;
@@ -2550,8 +2552,9 @@ async function exportarExcel() {
   let estudiantes=await fsGetAll('estudiantes');
   if(grado) estudiantes=estudiantes.filter(e=>e.grado===grado);
   if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
-  const asistencias=await fsGetAll('asistencia');
-  const justifs=await fsGetAll('justificaciones');
+  const _qAsistE = fi&&ff ? [FB.where('fecha','>=',fi.split('-').reverse().join('/')), FB.where('fecha','<=',ff.split('-').reverse().join('/'))] : [];
+  const asistencias = _qAsistE.length ? await fsQuery('asistencia',..._qAsistE) : await fsGetAll('asistencia');
+  const justifs = _qAsistE.length ? await fsQuery('justificaciones',..._qAsistE) : await fsGetAll('justificaciones');
   const fecha=getFecha();
   const filtrarFecha=(f)=>{
     if(!fi&&!ff) return true;
@@ -2620,8 +2623,9 @@ async function exportarPDF() {
   let estudiantes=await fsGetAll('estudiantes');
   if(grado) estudiantes=estudiantes.filter(e=>e.grado===grado);
   if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
-  const asistencias=await fsGetAll('asistencia');
-  const justifs=await fsGetAll('justificaciones');
+  const _qAsistP = fi&&ff ? [FB.where('fecha','>=',fi.split('-').reverse().join('/')), FB.where('fecha','<=',ff.split('-').reverse().join('/'))] : [];
+  const asistencias = _qAsistP.length ? await fsQuery('asistencia',..._qAsistP) : await fsGetAll('asistencia');
+  const justifs = _qAsistP.length ? await fsQuery('justificaciones',..._qAsistP) : await fsGetAll('justificaciones');
   const filtrarFecha=(f)=>{
     if(!fi&&!ff) return true;
     const p=f.split('/'); if(p.length!==3) return true;
