@@ -1333,7 +1333,7 @@ function entrarApp() {
     ['mn_admin','mn_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('timerBanner').style.display = '';
   } else if (sesion.rol === 'admin') {
-    ['nav_padre','nav_refuerzo','nav_permisos'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['nav_padre','nav_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('mn_padre').style.display = 'none';
   }
   const hints = { admin:'<strong>👑 Administrador</strong>Gestión completa del sistema.', auxiliar:'<strong>🛡️ Auxiliar</strong>Registra asistencia y justificaciones.', tutor:'<strong>📖 Tutor</strong>Revisa tu aula y aprueba justificaciones.', padre:'<strong>👪 Apoderado</strong>Consulta la asistencia de tu hijo.' };
@@ -3552,11 +3552,12 @@ async function permRenderActivos() {
       return;
     }
     cont.innerHTML = docs.map(d => `
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff3f3;border:1.5px solid #e8000d;border-radius:10px;padding:10px 14px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff0f0;border:3px solid #e8000d;border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 16px rgba(232,0,13,0.18);">
         <div>
-          <div style="font-size:13px;font-weight:700;color:var(--texto);">🚶 ${d.estudianteNombre}</div>
-          <div style="font-size:11px;color:var(--texto-suave);margin-top:2px;">${d.grado} — Sec. ${d.seccion} · Salió: ${d.horaSalida} · Prof. ${d.profesorNombre}</div>
-          ${d.alerta?'<div style="font-size:11px;color:#e8000d;font-weight:700;margin-top:3px;">🚨 Más de '+PERM_LIMITE+' permisos hoy</div>':''}
+          <div style="font-size:17px;font-weight:900;color:#e8000d;letter-spacing:.3px;">🚨 ${d.estudianteNombre}</div>
+          <div style="font-size:13px;font-weight:700;color:#b00008;margin-top:4px;">FUERA DEL AULA</div>
+          <div style="font-size:12px;color:var(--texto-suave);margin-top:3px;">${d.grado} — Sec. ${d.seccion} · Salió: ${d.horaSalida} · Prof. ${d.profesorNombre}</div>
+          ${d.alerta?'<div style="font-size:12px;color:#e8000d;font-weight:800;margin-top:4px;">⚠️ Más de '+PERM_LIMITE+' permisos hoy</div>':''}
         </div>
         <button onclick="permRegistrarRegreso('${d.id}','${d.estudianteNombre.replace(/'/g,"\\'")}');event.stopPropagation();"
           style="padding:7px 14px;background:#e8000d;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
@@ -3583,7 +3584,7 @@ async function permRenderHistorial() {
       return `<div style="display:flex;align-items:center;gap:10px;background:${bg};border:1px solid ${borde};border-radius:8px;padding:8px 12px;margin-bottom:6px;">
         <div style="flex:1;">
           <div style="font-size:13px;font-weight:600;color:var(--texto);">${d.estudianteNombre} <span style="font-size:11px;color:var(--texto-suave);">— ${d.grado} Sec. ${d.seccion}</span></div>
-          <div style="font-size:11px;color:var(--texto-suave);margin-top:2px;">Salida: ${d.horaSalida} · Regreso: ${d.horaRegreso||'⏳ aún fuera'}</div>
+          <div style="font-size:11px;color:var(--texto-suave);margin-top:2px;">Salida: ${d.horaSalida} · <span style="font-weight:700;color:#e8000d;">${d.horaRegreso ? 'Regreso: '+d.horaRegreso : '🚨 AÚN NO HA REGRESADO'}</span></div>
         </div>
         <div style="text-align:center;">
           <div style="font-size:18px;font-weight:800;color:${alerta?'#e8000d':'var(--texto)'};">${total}</div>
