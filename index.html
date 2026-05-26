@@ -1882,9 +1882,19 @@ async function buscarPorNombre() {
     const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':est==='justificado'?'<span class="badge badge-blue">📄 Justificado</span>':null;
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;margin-bottom:5px;background:${registrado?'#fff0f0':'var(--gris-bg)'};border:1px solid ${registrado?'#a9dfbf':'var(--borde)'};">
       <div><div style="font-size:12px;font-weight:700;">${e.nombre}</div><div style="font-size:10px;color:var(--texto-suave);">${e.grado} — Sección ${e.seccion}</div></div>
-      ${badge ? badge : `<div style="display:flex;gap:4px;"><button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">✅</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌</button></div>`}
+      ${badge ? badge : `<div style="display:flex;gap:4px;"><button class="btn btn-success btn-sm" onclick="registrarAsistenciaYRefrescar('${qrStr}')">✅</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌</button></div>`}
     </div>`;
   }).join('')||'<div style="padding:8px;font-size:12px;color:var(--texto-suave);">Sin resultados</div>';
+}
+
+async function registrarAsistenciaYRefrescar(qrStr) {
+  const ok = await registrarAsistencia(qrStr);
+  if (ok) {
+    buscarPorNombre();
+    renderListaAsistencia();
+    cargarTablaAsistencia();
+    actualizarStats();
+  }
 }
 
 async function buscarPorDNI() {
@@ -2873,9 +2883,14 @@ async function procesarFotoQR(input) {
 async function procesarManual() {
   const q=document.getElementById('manualInput').value.trim().toLowerCase();
   if(!q){notif('❌ Ingresa el nombre','error');return;}
-  const todos=_estudiantesCache.length?_estudiantesCache:await fsGetAll('estudiantes');
-  const found=todos.filter(e=>e.nombre.toLowerCase().includes(q));
+  if(!q||q.length<2){notif('⚠️ Escribe al menos 2 letras','warning');return;}
   const c=document.getElementById('manualResultados');
+  c.innerHTML='<div style="font-size:12px;color:var(--texto-suave);padding:8px;">⏳ Buscando...</div>';
+  try {
+    if(!_estudiantesCache.length) _estudiantesCache = await fsGetAll('estudiantes');
+  } catch(e) { notif('❌ Error al cargar estudiantes','error'); return; }
+  const todos=_estudiantesCache;
+  const found=todos.filter(e=>e.nombre.toLowerCase().includes(q));
   if(!found.length){c.innerHTML='<div style="color:var(--rojo);font-size:12px;margin-top:8px;">❌ No se encontró</div>';return;}
   const fecha=getFecha();
   const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
