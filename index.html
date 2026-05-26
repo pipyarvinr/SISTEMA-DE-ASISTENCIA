@@ -1331,7 +1331,7 @@ function entrarApp() {
     ['mn_admin','mn_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('timerBanner').style.display = '';
   } else if (sesion.rol === 'admin') {
-    ['nav_padre','nav_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['nav_padre','nav_refuerzo','nav_permisos'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('mn_padre').style.display = 'none';
   }
   const hints = { admin:'<strong>👑 Administrador</strong>Gestión completa del sistema.', auxiliar:'<strong>🛡️ Auxiliar</strong>Registra asistencia y justificaciones.', tutor:'<strong>📖 Tutor</strong>Revisa tu aula y aprueba justificaciones.', padre:'<strong>👪 Apoderado</strong>Consulta la asistencia de tu hijo.' };
@@ -2895,7 +2895,14 @@ async function procesarManual() {
 
 async function registrarManualPresente(qrStr) {
   const ok=await registrarAsistencia(qrStr);
-  if(ok){document.getElementById('manualInput').value='';document.getElementById('manualResultados').innerHTML='';cerrarScanner();}
+  if(ok){
+    document.getElementById('manualInput').value='';
+    document.getElementById('manualResultados').innerHTML='';
+    cerrarScanner();
+    renderListaAsistencia();
+    cargarTablaAsistencia();
+    actualizarStats();
+  }
 }
 
 async function registrarManualAusente(id,nombre,grado,seccion) {
@@ -3094,8 +3101,8 @@ let _rfHoraInicioSesion = '', _rfHoraFinSesion = '';
 async function rfIniciarSesionHoy() {
   const hi = document.getElementById('rfHoraInicio')?.value;
   const hf = document.getElementById('rfHoraFin')?.value;
-  if (!hi || !hf) { notif('⚠️ Ingresa hora de inicio y fin','warning'); return; }
-  if (hi >= hf) { notif('⚠️ La hora fin debe ser mayor al inicio','warning'); return; }
+  if (!hi || !hf) { notif('26a0Fe0f Ingresa hora de inicio y fin','warning'); return; }
+  if (hi >= hf) { notif('26a0Fe0f La hora fin debe ser mayor al inicio','warning'); return; }
   _rfHoraInicioSesion = hi; _rfHoraFinSesion = hf;
   try {
     const docs = await fsQuery('refuerzo', FB.where('tutorUid','==', sesion.uid));
