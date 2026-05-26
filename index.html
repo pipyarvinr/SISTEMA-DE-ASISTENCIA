@@ -3557,7 +3557,10 @@ async function permRenderActivos() {
           <div style="font-size:17px;font-weight:900;color:#e8000d;letter-spacing:.3px;">🚨 ${d.estudianteNombre}</div>
           <div style="font-size:13px;font-weight:700;color:#b00008;margin-top:4px;">FUERA DEL AULA</div>
           <div style="font-size:12px;color:var(--texto-suave);margin-top:3px;">${d.grado} — Sec. ${d.seccion} · Salió: ${d.horaSalida} · Prof. ${d.profesorNombre}</div>
-          ${d.alerta?'<div style="font-size:12px;color:#e8000d;font-weight:800;margin-top:4px;">⚠️ Más de '+PERM_LIMITE+' permisos hoy</div>':''}
+          ${d.alerta?`
+            <div style="margin-top:8px;background:#e8000d;color:#fff;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:900;letter-spacing:.4px;display:flex;align-items:center;gap:6px;animation:blink .7s infinite;">
+              🚨 EXCEDIÓ EL LÍMITE — ${PERM_LIMITE} PERMISOS HOY
+            </div>`:''}}
         </div>
         <button onclick="permRegistrarRegreso('${d.id}','${d.estudianteNombre.replace(/'/g,"\\'")}');event.stopPropagation();"
           style="padding:7px 14px;background:#e8000d;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
@@ -3581,15 +3584,17 @@ async function permRenderHistorial() {
       const alerta = total >= PERM_LIMITE;
       const bg = alerta?'#fff3f3':'var(--gris-bg)';
       const borde = alerta?'#e8000d33':'var(--borde)';
-      return `<div style="display:flex;align-items:center;gap:10px;background:${bg};border:1px solid ${borde};border-radius:8px;padding:8px 12px;margin-bottom:6px;">
-        <div style="flex:1;">
-          <div style="font-size:13px;font-weight:600;color:var(--texto);">${d.estudianteNombre} <span style="font-size:11px;color:var(--texto-suave);">— ${d.grado} Sec. ${d.seccion}</span></div>
-          <div style="font-size:11px;color:var(--texto-suave);margin-top:2px;">Salida: ${d.horaSalida} · <span style="font-weight:700;color:#e8000d;">${d.horaRegreso ? 'Regreso: '+d.horaRegreso : '🚨 AÚN NO HA REGRESADO'}</span></div>
-        </div>
-        <div style="text-align:center;">
-          <div style="font-size:18px;font-weight:800;color:${alerta?'#e8000d':'var(--texto)'};">${total}</div>
-          <div style="font-size:9px;color:var(--texto-suave);">permisos</div>
-          ${alerta?'<div style="font-size:10px;color:#e8000d;font-weight:700;">🚨</div>':''}
+      return `<div style="background:${bg};border:${alerta?'2.5px solid #e8000d':'1px solid '+borde};border-radius:10px;padding:10px 12px;margin-bottom:8px;${alerta?'box-shadow:0 3px 12px rgba(232,0,13,0.15);':''}">
+        ${alerta?`<div style="background:#e8000d;color:#fff;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:900;letter-spacing:.4px;margin-bottom:8px;display:flex;align-items:center;gap:6px;">🚨 ALERTA: ${total} PERMISOS HOY — EXCEDE EL LÍMITE</div>`:''}
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;">
+            <div style="font-size:13px;font-weight:${alerta?'800':'600'};color:${alerta?'#e8000d':'var(--texto)'};">${d.estudianteNombre} <span style="font-size:11px;color:var(--texto-suave);font-weight:400;">— ${d.grado} Sec. ${d.seccion}</span></div>
+            <div style="font-size:11px;color:var(--texto-suave);margin-top:2px;">Salida: ${d.horaSalida} · <span style="font-weight:700;color:#e8000d;">${d.horaRegreso ? 'Regreso: '+d.horaRegreso : '🚨 AÚN NO HA REGRESADO'}</span></div>
+          </div>
+          <div style="text-align:center;min-width:44px;">
+            <div style="font-size:22px;font-weight:900;color:${alerta?'#e8000d':'var(--texto)'};">${total}</div>
+            <div style="font-size:9px;color:var(--texto-suave);">permisos</div>
+          </div>
         </div>
       </div>`;
     }).join('');
