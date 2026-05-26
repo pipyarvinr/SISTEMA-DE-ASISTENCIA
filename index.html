@@ -1878,13 +1878,21 @@ async function buscarPorNombre() {
   c.innerHTML=lista.slice(0,8).map(e=>{
     const est=estadoMap[e.id];
     const registrado=!!est;
-    const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
     const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':est==='justificado'?'<span class="badge badge-blue">📄 Justificado</span>':null;
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;margin-bottom:5px;background:${registrado?'#fff0f0':'var(--gris-bg)'};border:1px solid ${registrado?'#a9dfbf':'var(--borde)'};">
       <div><div style="font-size:12px;font-weight:700;">${e.nombre}</div><div style="font-size:10px;color:var(--texto-suave);">${e.grado} — Sección ${e.seccion}</div></div>
-      ${badge ? badge : `<div style="display:flex;gap:4px;"><button class="btn btn-success btn-sm" onclick="registrarAsistenciaYRefrescar('${qrStr}')">✅</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌</button></div>`}
+      ${badge ? badge : `<div style="display:flex;gap:4px;"><button class="btn btn-success btn-sm" data-eid="${e.id}" data-enombre="${encodeURIComponent(e.nombre)}" data-egrado="${e.grado}" data-eseccion="${e.seccion}" onclick="_regManual(this)">✅ Asistió</button><button class="btn btn-danger btn-sm" data-eid="${e.id}" data-enombre="${encodeURIComponent(e.nombre)}" data-egrado="${e.grado}" data-eseccion="${e.seccion}" onclick="registrarManualAusente(this.dataset.eid,decodeURIComponent(this.dataset.enombre),this.dataset.egrado,this.dataset.eseccion)">❌ Ausente</button></div>`}
     </div>`;
   }).join('')||'<div style="padding:8px;font-size:12px;color:var(--texto-suave);">Sin resultados</div>';
+}
+
+async function _regManual(btn) {
+  const id = btn.dataset.eid;
+  const nombre = decodeURIComponent(btn.dataset.enombre);
+  const grado = btn.dataset.egrado;
+  const seccion = btn.dataset.eseccion;
+  const qrStr = JSON.stringify({id, nombre, grado, seccion});
+  await registrarAsistenciaYRefrescar(qrStr);
 }
 
 async function registrarAsistenciaYRefrescar(qrStr) {
