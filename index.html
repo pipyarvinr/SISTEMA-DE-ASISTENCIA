@@ -29,16 +29,28 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js')
     .then(reg => {
       console.log('✅ Service Worker registrado:', reg.scope);
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            console.log('🔄 Nueva versión disponible');
-          }
-        });
-      });
     })
     .catch(err => console.warn('SW no pudo registrarse:', err));
+
+  // Escuchar mensaje del SW cuando hay actualización
+  navigator.serviceWorker.addEventListener('message', e => {
+    if (e.data && e.data.type === 'SW_UPDATED') {
+      // Mostrar banner de actualización
+      if (document.getElementById('updateBanner')) return;
+      const banner = document.createElement('div');
+      banner.id = 'updateBanner';
+      banner.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:9999;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:14px 20px;border-radius:14px;box-shadow:0 4px 20px rgba(0,0,0,.35);display:flex;align-items:center;gap:12px;font-family:inherit;max-width:340px;width:90%;border:1px solid rgba(255,255,255,.1);';
+      banner.innerHTML = `
+        <div style="font-size:22px;">🔄</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:700;margin-bottom:2px;">Nueva versión disponible</div>
+          <div style="font-size:11px;color:rgba(255,255,255,.6);">Toca para ver los últimos cambios</div>
+        </div>
+        <button onclick="window.location.reload(true)" style="background:#e8000d;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">Actualizar</button>
+      `;
+      document.body.appendChild(banner);
+    }
+  });
 }
 </script>
 
