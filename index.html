@@ -112,7 +112,7 @@ if (window._iniciarApp) window._iniciarApp(window._fb);
   --verde:#e8000d; --verde-oscuro:#b00008; --verde-claro:#ff2222;
   --naranja:#e67e22; --rojo:#e8000d; --azul:#2980b9; --morado:#8e44ad;
   --gris-bg:#fdf5f5; --blanco:#fff; --texto:#2c1010; --texto-suave:#7a4f4f;
-  --borde:#f0d0d0; --gris-claro:#f0e8e8; --fondo:#fdf5f5;
+  --borde:#f0d0d0;
   --shadow-sm:0 1px 4px rgba(0,0,0,.08);
   --shadow-md:0 4px 20px rgba(0,0,0,.12);
   --shadow-lg:0 12px 40px rgba(0,0,0,.18);
@@ -227,8 +227,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--gris-bg);min-height:100vh
 .form-group label{font-size:11px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;}
 .form-group input,.form-group select,.form-group textarea{padding:9px 12px;border:1.5px solid var(--borde);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--texto);background:white;transition:border-color .2s;outline:none;}
 .form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--verde);}
-.input{width:100%;padding:9px 12px;border:1.5px solid var(--borde);border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:13px;color:var(--texto);background:white;transition:border-color .2s;outline:none;}
-.input:focus{border-color:var(--verde);}
 .form-group.full{grid-column:1/-1;}
 
 /* ── STUDENTS GRID ── */
@@ -1438,8 +1436,7 @@ async function finalizarYMarcarAusentes() {
   finalizarSesion();
   notif('⏳ Marcando ausentes…','info');
   try {
-    let todos = _estudiantesCache?.length ? _estudiantesCache : await fsGetAll('estudiantes');
-    if (!_estudiantesCache?.length) _estudiantesCache = todos;
+    let todos = await fsGetAll('estudiantes');
     // BUG #2 FIX: auxiliar/tutor solo marca ausentes de sus grados y secciones asignadas
     if (sesion?.rol !== 'admin') {
       if (sesion?.grados?.length) todos = todos.filter(e=>sesion.grados.includes(e.grado));
@@ -1758,8 +1755,8 @@ async function renderListaAsistencia() {
     c.innerHTML='<div style="padding:24px;text-align:center;color:var(--texto-suave);grid-column:1/-1;">⚠️ No tienes grados ni secciones asignados.<br>Pide al Administrador que configure tu cuenta.</div>';
     return;
   }
-  let lista = _estudiantesCache?.length ? _estudiantesCache : await fsGetAll('estudiantes');
-  if (!_estudiantesCache?.length) _estudiantesCache = lista;
+  let lista = await fsGetAll('estudiantes');
+  _estudiantesCache = lista;
   const gf = document.getElementById('fGradoAux')?.value;
   const sf = document.getElementById('fSecAux')?.value;
   if (sesion?.grados?.length) lista = lista.filter(e=>sesion.grados.includes(e.grado));
@@ -1767,8 +1764,8 @@ async function renderListaAsistencia() {
   if (gf) lista = lista.filter(e=>e.grado===gf);
   if (sf) lista = lista.filter(e=>e.seccion===sf);
   const fecha = getFecha();
-  const asist = _asistenciaHoyCache?.length ? _asistenciaHoyCache : await fsQuery('asistencia', FB.where('fecha','==',fecha));
-  if (!_asistenciaHoyCache?.length) _asistenciaHoyCache = asist;
+  const asist = await fsQuery('asistencia', FB.where('fecha','==',fecha));
+  _asistenciaHoyCache = asist;
   const presSet = new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
   const ausenteSet = new Set(asist.filter(a=>a.estado==='ausente').map(a=>a.estudianteId));
   const justifs = await fsQuery('justificaciones', FB.where('fecha','==',fecha), FB.where('estado','==','aprobado'));
@@ -1881,31 +1878,13 @@ async function buscarPorNombre() {
   c.innerHTML=lista.slice(0,8).map(e=>{
     const est=estadoMap[e.id];
     const registrado=!!est;
+    const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
     const badge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':est==='justificado'?'<span class="badge badge-blue">📄 Justificado</span>':null;
     return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:8px;margin-bottom:5px;background:${registrado?'#fff0f0':'var(--gris-bg)'};border:1px solid ${registrado?'#a9dfbf':'var(--borde)'};">
       <div><div style="font-size:12px;font-weight:700;">${e.nombre}</div><div style="font-size:10px;color:var(--texto-suave);">${e.grado} — Sección ${e.seccion}</div></div>
-      ${badge ? badge : `<div style="display:flex;gap:4px;"><button class="btn btn-success btn-sm" data-eid="${e.id}" data-enombre="${encodeURIComponent(e.nombre)}" data-egrado="${e.grado}" data-eseccion="${e.seccion}" onclick="_regManual(this)">✅ Asistió</button><button class="btn btn-danger btn-sm" data-eid="${e.id}" data-enombre="${encodeURIComponent(e.nombre)}" data-egrado="${e.grado}" data-eseccion="${e.seccion}" onclick="registrarManualAusente(this.dataset.eid,decodeURIComponent(this.dataset.enombre),this.dataset.egrado,this.dataset.eseccion)">❌ Ausente</button></div>`}
+      ${badge ? badge : `<div style="display:flex;gap:4px;"><button class="btn btn-success btn-sm" onclick="registrarAsistencia('${qrStr}')">✅</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌</button></div>`}
     </div>`;
   }).join('')||'<div style="padding:8px;font-size:12px;color:var(--texto-suave);">Sin resultados</div>';
-}
-
-async function _regManual(btn) {
-  const id = btn.dataset.eid;
-  const nombre = decodeURIComponent(btn.dataset.enombre);
-  const grado = btn.dataset.egrado;
-  const seccion = btn.dataset.eseccion;
-  const qrStr = JSON.stringify({id, nombre, grado, seccion});
-  await registrarAsistenciaYRefrescar(qrStr);
-}
-
-async function registrarAsistenciaYRefrescar(qrStr) {
-  const ok = await registrarAsistencia(qrStr);
-  if (ok) {
-    buscarPorNombre();
-    renderListaAsistencia();
-    cargarTablaAsistencia();
-    actualizarStats();
-  }
 }
 
 async function buscarPorDNI() {
@@ -2498,9 +2477,8 @@ async function generarReporte() {
   if(sesion?.secciones?.length) estudiantes=estudiantes.filter(e=>sesion.secciones.includes(e.seccion));
   if(grado) estudiantes=estudiantes.filter(e=>e.grado===grado);
   if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
-  const _qAsist = fi&&ff ? [FB.where('fecha','>=',fi.split('-').reverse().join('/')), FB.where('fecha','<=',ff.split('-').reverse().join('/'))] : [];
-  const asistencias = _qAsist.length ? await fsQuery('asistencia',..._qAsist) : await fsGetAll('asistencia');
-  const justifs = _qAsist.length ? await fsQuery('justificaciones',..._qAsist) : await fsGetAll('justificaciones');
+  const asistencias=await fsGetAll('asistencia');
+  const justifs=await fsGetAll('justificaciones');
   const filtrarFecha=(f)=>{
     if(!f) return false;
     if(!fi&&!ff) return true;
@@ -2552,9 +2530,8 @@ async function exportarExcel() {
   let estudiantes=await fsGetAll('estudiantes');
   if(grado) estudiantes=estudiantes.filter(e=>e.grado===grado);
   if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
-  const _qAsistE = fi&&ff ? [FB.where('fecha','>=',fi.split('-').reverse().join('/')), FB.where('fecha','<=',ff.split('-').reverse().join('/'))] : [];
-  const asistencias = _qAsistE.length ? await fsQuery('asistencia',..._qAsistE) : await fsGetAll('asistencia');
-  const justifs = _qAsistE.length ? await fsQuery('justificaciones',..._qAsistE) : await fsGetAll('justificaciones');
+  const asistencias=await fsGetAll('asistencia');
+  const justifs=await fsGetAll('justificaciones');
   const fecha=getFecha();
   const filtrarFecha=(f)=>{
     if(!fi&&!ff) return true;
@@ -2623,9 +2600,8 @@ async function exportarPDF() {
   let estudiantes=await fsGetAll('estudiantes');
   if(grado) estudiantes=estudiantes.filter(e=>e.grado===grado);
   if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
-  const _qAsistP = fi&&ff ? [FB.where('fecha','>=',fi.split('-').reverse().join('/')), FB.where('fecha','<=',ff.split('-').reverse().join('/'))] : [];
-  const asistencias = _qAsistP.length ? await fsQuery('asistencia',..._qAsistP) : await fsGetAll('asistencia');
-  const justifs = _qAsistP.length ? await fsQuery('justificaciones',..._qAsistP) : await fsGetAll('justificaciones');
+  const asistencias=await fsGetAll('asistencia');
+  const justifs=await fsGetAll('justificaciones');
   const filtrarFecha=(f)=>{
     if(!fi&&!ff) return true;
     const p=f.split('/'); if(p.length!==3) return true;
@@ -2897,33 +2873,21 @@ async function procesarFotoQR(input) {
 async function procesarManual() {
   const q=document.getElementById('manualInput').value.trim().toLowerCase();
   if(!q){notif('❌ Ingresa el nombre','error');return;}
-  if(!q||q.length<2){notif('⚠️ Escribe al menos 2 letras','warning');return;}
-  const c=document.getElementById('manualResultados');
-  c.innerHTML='<div style="font-size:12px;color:var(--texto-suave);padding:8px;">⏳ Buscando...</div>';
-  try {
-    if(!_estudiantesCache.length) _estudiantesCache = await fsGetAll('estudiantes');
-  } catch(e) { notif('❌ Error al cargar estudiantes','error'); return; }
-  const todos=_estudiantesCache;
+  const todos=_estudiantesCache.length?_estudiantesCache:await fsGetAll('estudiantes');
   const found=todos.filter(e=>e.nombre.toLowerCase().includes(q));
+  const c=document.getElementById('manualResultados');
   if(!found.length){c.innerHTML='<div style="color:var(--rojo);font-size:12px;margin-top:8px;">❌ No se encontró</div>';return;}
   const fecha=getFecha();
   const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
   const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
-  // Guardamos los estudiantes encontrados en un mapa global para acceder por id sin problemas de comillas
-  window._manualFoundMap = {};
-  found.slice(0,8).forEach(e => { window._manualFoundMap[e.id] = e; });
   c.innerHTML=found.slice(0,8).map(e=>{
     const pres=presSet.has(e.id);
+    const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
     return `<div style="background:var(--gris-bg);border:1.5px solid var(--borde);border-radius:10px;padding:10px 12px;margin-top:8px;">
       <div style="font-weight:700;font-size:13px;">${e.nombre.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
       <div style="font-size:11px;color:var(--texto-suave);margin-bottom:8px;">${e.grado.replace(/</g,'&lt;')} — Sección ${e.seccion.replace(/</g,'&lt;')}</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;">
-        ${pres
-          ? '<span class="badge badge-green">✅ Ya registrado</span>'
-          : `<button class="btn btn-success btn-sm" onclick="registrarManualEstado('${e.id}','puntual')">✅ Puntual</button>
-             <button class="btn btn-sm" style="background:#e67e22;color:#fff;" onclick="registrarManualEstado('${e.id}','tardanza')">⏰ Tardanza</button>
-             <button class="btn btn-danger btn-sm" onclick="registrarManualEstado('${e.id}','ausente')">❌ Ausente</button>`
-        }
+      <div style="display:flex;gap:6px;">
+        ${pres ? '<span class="badge badge-green">✅ Ya registrado</span>' : `<button class="btn btn-success btn-sm" onclick="registrarManualPresente('${qrStr}')">✅ Presente</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌ Ausente</button>`}
       </div>
     </div>`;
   }).join('');
@@ -2931,37 +2895,8 @@ async function procesarManual() {
 
 async function registrarManualPresente(qrStr) {
   const ok=await registrarAsistencia(qrStr);
-  if(ok){
-    document.getElementById('manualInput').value='';
-    document.getElementById('manualResultados').innerHTML='';
-    cerrarScanner();
-    renderListaAsistencia();
-    cargarTablaAsistencia();
-    actualizarStats();
-  }
+  if(ok){document.getElementById('manualInput').value='';document.getElementById('manualResultados').innerHTML='';cerrarScanner();}
 }
-
-async function registrarManualEstado(id, estado) {
-  const e = window._manualFoundMap && window._manualFoundMap[id];
-  if (!e) { notif('❌ Error interno: estudiante no encontrado','error'); return; }
-  const { nombre, grado, seccion } = e;
-  if (estado !== 'ausente') {
-    if (!ventanaActiva && sesion?.rol !== 'admin') { notif('⏰ Inicia la sesión primero (botón ▶)','error'); return; }
-  }
-  if (sesion?.grados?.length && !sesion.grados.includes(grado)) { notif('❌ No tienes permiso sobre ese grado','error'); return; }
-  if (sesion?.secciones?.length && !sesion.secciones.includes(seccion)) { notif('❌ No tienes permiso sobre esa sección','error'); return; }
-  const fecha = getFecha(), hora = new Date().toLocaleTimeString('es-PE');
-  const existe = await fsQuery('asistencia', FB.where('fecha','==',fecha), FB.where('estudianteId','==',id));
-  if (existe.length) { notif('⚠️ ' + nombre + ' ya tiene registro hoy','warning'); return; }
-  await fsAdd('asistencia', { estudianteId: id, nombre, grado, seccion, fecha, hora, estado, registradoPor: 'manual' });
-  const label = estado==='puntual' ? '✅ Puntual' : estado==='tardanza' ? '⏰ Tardanza' : '❌ Ausente';
-  notif(label + ' — ' + nombre + ' — ' + grado + ' "' + seccion + '" — ' + hora, 'success');
-  _asistenciaHoyCache = null;
-  document.getElementById('manualInput').value = '';
-  document.getElementById('manualResultados').innerHTML = '';
-  renderListaAsistencia(); cargarTablaAsistencia(); actualizarStats();
-}
-
 
 async function registrarManualAusente(id,nombre,grado,seccion) {
   // BUG #5 FIX: validar sesión activa y grado/sección asignada
@@ -3556,15 +3491,11 @@ async function permRenderActivos() {
       return;
     }
     cont.innerHTML = docs.map(d => `
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff0f0;border:3px solid #e8000d;border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:0 4px 16px rgba(232,0,13,0.18);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff3f3;border:1.5px solid #e8000d;border-radius:10px;padding:10px 14px;margin-bottom:8px;">
         <div>
-          <div style="font-size:17px;font-weight:900;color:#e8000d;letter-spacing:.3px;">🚨 ${d.estudianteNombre}</div>
-          <div style="font-size:13px;font-weight:700;color:#b00008;margin-top:4px;">FUERA DEL AULA</div>
-          <div style="font-size:12px;color:var(--texto-suave);margin-top:3px;">${d.grado} — Sec. ${d.seccion} · Salió: ${d.horaSalida} · Prof. ${d.profesorNombre}</div>
-          ${d.alerta?`
-            <div style="margin-top:8px;background:#e8000d;color:#fff;border-radius:8px;padding:7px 12px;font-size:13px;font-weight:900;letter-spacing:.4px;display:flex;align-items:center;gap:6px;animation:blink .7s infinite;">
-              🚨 EXCEDIÓ EL LÍMITE — ${PERM_LIMITE} PERMISOS HOY
-            </div>`:''}}
+          <div style="font-size:13px;font-weight:700;color:var(--texto);">🚶 ${d.estudianteNombre}</div>
+          <div style="font-size:11px;color:var(--texto-suave);margin-top:2px;">${d.grado} — Sec. ${d.seccion} · Salió: ${d.horaSalida} · Prof. ${d.profesorNombre}</div>
+          ${d.alerta?'<div style="font-size:11px;color:#e8000d;font-weight:700;margin-top:3px;">🚨 Más de '+PERM_LIMITE+' permisos hoy</div>':''}
         </div>
         <button onclick="permRegistrarRegreso('${d.id}','${d.estudianteNombre.replace(/'/g,"\\'")}');event.stopPropagation();"
           style="padding:7px 14px;background:#e8000d;color:white;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;">
@@ -3588,17 +3519,15 @@ async function permRenderHistorial() {
       const alerta = total >= PERM_LIMITE;
       const bg = alerta?'#fff3f3':'var(--gris-bg)';
       const borde = alerta?'#e8000d33':'var(--borde)';
-      return `<div style="background:${bg};border:${alerta?'2.5px solid #e8000d':'1px solid '+borde};border-radius:10px;padding:10px 12px;margin-bottom:8px;${alerta?'box-shadow:0 3px 12px rgba(232,0,13,0.15);':''}">
-        ${alerta?`<div style="background:#e8000d;color:#fff;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:900;letter-spacing:.4px;margin-bottom:8px;display:flex;align-items:center;gap:6px;">🚨 ALERTA: ${total} PERMISOS HOY — EXCEDE EL LÍMITE</div>`:''}
-        <div style="display:flex;align-items:center;gap:10px;">
-          <div style="flex:1;">
-            <div style="font-size:13px;font-weight:${alerta?'800':'600'};color:${alerta?'#e8000d':'var(--texto)'};">${d.estudianteNombre} <span style="font-size:11px;color:var(--texto-suave);font-weight:400;">— ${d.grado} Sec. ${d.seccion}</span></div>
-            <div style="font-size:11px;color:var(--texto-suave);margin-top:2px;">Salida: ${d.horaSalida} · <span style="font-weight:700;color:#e8000d;">${d.horaRegreso ? 'Regreso: '+d.horaRegreso : '🚨 AÚN NO HA REGRESADO'}</span></div>
-          </div>
-          <div style="text-align:center;min-width:44px;">
-            <div style="font-size:22px;font-weight:900;color:${alerta?'#e8000d':'var(--texto)'};">${total}</div>
-            <div style="font-size:9px;color:var(--texto-suave);">permisos</div>
-          </div>
+      return `<div style="display:flex;align-items:center;gap:10px;background:${bg};border:1px solid ${borde};border-radius:8px;padding:8px 12px;margin-bottom:6px;">
+        <div style="flex:1;">
+          <div style="font-size:13px;font-weight:600;color:var(--texto);">${d.estudianteNombre} <span style="font-size:11px;color:var(--texto-suave);">— ${d.grado} Sec. ${d.seccion}</span></div>
+          <div style="font-size:11px;color:var(--texto-suave);margin-top:2px;">Salida: ${d.horaSalida} · Regreso: ${d.horaRegreso||'⏳ aún fuera'}</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:18px;font-weight:800;color:${alerta?'#e8000d':'var(--texto)'};">${total}</div>
+          <div style="font-size:9px;color:var(--texto-suave);">permisos</div>
+          ${alerta?'<div style="font-size:10px;color:#e8000d;font-weight:700;">🚨</div>':''}
         </div>
       </div>`;
     }).join('');
