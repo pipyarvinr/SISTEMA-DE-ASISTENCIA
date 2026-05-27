@@ -1,4 +1,4 @@
-const CACHE = 'asistencia-qr-20260526b';
+const CACHE = 'asistencia-qr-20260526c';
 const ASSETS = [self.location.pathname];
 
 self.addEventListener('install', e => {
