@@ -2,7 +2,7 @@
   "name": "AsistenciaQR — IE N.° 0148",
   "short_name": "AsistenciaQR",
   "description": "Control de asistencia IE N.° 0148 Maestro Víctor Raúl Haya de la Torre",
-  "start_url": "./index.html",
+  "start_url": "./index.html?v=2",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#b00008",
