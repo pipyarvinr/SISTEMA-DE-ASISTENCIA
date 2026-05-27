@@ -2,12 +2,15 @@ const CACHE = 'asistencia-qr-20260526';
 const ASSETS = [self.location.pathname];
 
 self.addEventListener('install', e => {
+  // Activar inmediatamente sin esperar a que cierren las pestañas
+  self.skipWaiting();
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())
+    caches.open(CACHE).then(c => c.addAll(ASSETS))
   );
 });
 
 self.addEventListener('activate', e => {
+  // Tomar control inmediato de todas las pestañas abiertas
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
@@ -18,12 +21,14 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return;
   const url = e.request.url;
+  // Firebase y CDN: siempre desde red
   if (url.includes('firebasejs') || url.includes('googleapis') ||
       url.includes('gstatic') || url.includes('firebaseio') ||
       url.includes('jsdelivr') || url.includes('fonts.')) {
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
     return;
   }
+  // App shell: RED PRIMERO siempre — nunca sirve caché desactualizado
   e.respondWith(
     fetch(e.request)
       .then(res => {
