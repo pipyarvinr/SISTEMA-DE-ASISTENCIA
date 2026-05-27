@@ -389,8 +389,8 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
   .timer-actions{width:100%;}
   .timer-actions .btn{flex:1;justify-content:center;}
   .motivo-grid{grid-template-columns:repeat(2,1fr);}
-  .mobile-nav{display:flex!important;position:fixed;bottom:0;left:0;right:0;background:var(--verde-oscuro);z-index:100;padding:8px 0 env(safe-area-inset-bottom,8px);}
-  .mobile-nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 4px;background:none;border:none;color:rgba(255,255,255,.5);font-family:'DM Sans',sans-serif;font-size:10px;font-weight:700;cursor:pointer;}
+  .mobile-nav{display:flex!important;position:fixed;bottom:0;left:0;right:0;background:var(--verde-oscuro);z-index:100;padding:8px 0 env(safe-area-inset-bottom,8px);overflow-x:auto;-webkit-overflow-scrolling:touch;}
+  .mobile-nav-btn{flex:0 0 auto;min-width:64px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 6px;background:none;border:none;color:rgba(255,255,255,.5);font-family:'DM Sans',sans-serif;font-size:9px;font-weight:700;cursor:pointer;}
   .mobile-nav-btn.active{color:var(--verde-claro);}
   .mobile-nav-btn span{font-size:18px;}
   body{padding-bottom:68px;}
@@ -902,8 +902,11 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
 <nav class="mobile-nav" style="display:none;">
   <button class="mobile-nav-btn" id="mn_admin" onclick="irPanel('admin')"><span>👑</span>Admin</button>
   <button class="mobile-nav-btn" id="mn_asistencia" onclick="irPanel('asistencia')"><span>📋</span>Asistencia</button>
+  <button class="mobile-nav-btn" id="mn_permisos" onclick="irPanel('permisos')"><span>🚶</span>Permisos</button>
+  <button class="mobile-nav-btn" id="mn_incidencias" onclick="irPanel('incidencias')"><span>📓</span>Incidencias</button>
   <button class="mobile-nav-btn" id="mn_justificaciones" onclick="irPanel('justificaciones')"><span>📄</span>Justif.</button>
   <button class="mobile-nav-btn" id="mn_reportes" onclick="irPanel('reportes')"><span>📊</span>Reportes</button>
+  <button class="mobile-nav-btn" id="mn_refuerzo" onclick="irPanel('refuerzo')"><span>📌</span>Refuerzo</button>
   <button class="mobile-nav-btn" id="mn_padre" onclick="irPanel('padre')"><span>👪</span>Mi Hijo</button>
 </nav>
 
@@ -1350,9 +1353,11 @@ function entrarApp() {
   document.getElementById('sessionBadge').textContent = (iconos[sesion.rol]||'') + ' ' + sesion.nombre;
   const todos = ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_padre','nav_refuerzo','nav_incidencias','nav_permisos'];
   todos.forEach(n => { const el=document.getElementById(n); if(el) el.style.display=''; });
+  const todosMn = ['mn_admin','mn_asistencia','mn_justificaciones','mn_reportes','mn_padre','mn_refuerzo','mn_incidencias','mn_permisos'];
+  todosMn.forEach(n => { const el=document.getElementById(n); if(el) el.style.display=''; });
   if (sesion.rol === 'padre') {
     ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_refuerzo','nav_incidencias','nav_permisos'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
-    ['mn_admin','mn_asistencia','mn_justificaciones','mn_reportes'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['mn_admin','mn_asistencia','mn_justificaciones','mn_reportes','mn_refuerzo','mn_incidencias','mn_permisos'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('timerBanner').style.display = 'none';
   } else if (sesion.rol === 'tutor') {
     ['nav_admin','nav_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
@@ -1360,11 +1365,11 @@ function entrarApp() {
     document.getElementById('timerBanner').style.display = '';
   } else if (sesion.rol === 'auxiliar') {
     ['nav_admin','nav_padre','nav_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
-    ['mn_admin','mn_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['mn_admin','mn_padre','mn_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('timerBanner').style.display = '';
   } else if (sesion.rol === 'admin') {
     ['nav_padre','nav_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
-    document.getElementById('mn_padre').style.display = 'none';
+    ['mn_padre','mn_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
   }
   const hints = { admin:'<strong>👑 Administrador</strong>Gestión completa del sistema.', auxiliar:'<strong>🛡️ Auxiliar</strong>Registra asistencia y justificaciones.', tutor:'<strong>📖 Tutor</strong>Revisa tu aula y aprueba justificaciones.', padre:'<strong>👪 Apoderado</strong>Consulta la asistencia de tu hijo.' };
   document.getElementById('userHint').innerHTML = hints[sesion.rol] || '';
