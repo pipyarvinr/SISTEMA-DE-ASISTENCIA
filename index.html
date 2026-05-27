@@ -1349,7 +1349,7 @@ function entrarApp() {
   const iconos = { admin:'👑', auxiliar:'🛡️', tutor:'📖', padre:'👪' };
   document.getElementById('sessionBadge').textContent = (iconos[sesion.rol]||'') + ' ' + sesion.nombre;
   const todos = ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_padre','nav_refuerzo','nav_incidencias','nav_permisos'];
-  todos.forEach(n => { const el=document.getElementById(n); if(el) { el.style.display='flex'; el.removeAttribute('style'); el.style.display='flex'; } });
+  todos.forEach(n => { const el=document.getElementById(n); if(el) el.style.display=''; });
   if (sesion.rol === 'padre') {
     ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_refuerzo','nav_incidencias','nav_permisos'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     ['mn_admin','mn_asistencia','mn_justificaciones','mn_reportes'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
