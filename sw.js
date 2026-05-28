@@ -1,6 +1,6 @@
 // ══ SERVICE WORKER — AsistenciaQR v3 ══
 // Cambia CACHE_VERSION cada vez que publiques cambios
-const CACHE_VERSION = 'asistencia-v3';
+const CACHE_VERSION = 'asistencia-v4';
 
 const ARCHIVOS_ESENCIALES = [
   './index.html',
