@@ -55,21 +55,18 @@ if ('serviceWorker' in navigator) {
     }
   });
 
-  // Función de actualización correcta para móviles
-  window._actualizarApp = async function() {
-    try {
-      const reg = await navigator.serviceWorker.getRegistration();
-      if (reg && reg.waiting) {
-        // Si el nuevo SW está esperando, decirle que tome control
-        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-      }
-    } catch(err) { /* ignorar */ }
-    // Esperar a que el nuevo SW tome control y luego recargar
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
+  // Función de actualización correcta para móviles (sin async/await para compatibilidad)
+  window._actualizarApp = function() {
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
       window.location.href = window.location.href;
     });
+    navigator.serviceWorker.getRegistration().then(function(reg) {
+      if (reg && reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+    }).catch(function() { /* ignorar */ });
     // Fallback por si controllerchange no dispara
-    setTimeout(() => { window.location.href = window.location.href; }, 800);
+    setTimeout(function() { window.location.href = window.location.href; }, 800);
   };
 }
 </script>
