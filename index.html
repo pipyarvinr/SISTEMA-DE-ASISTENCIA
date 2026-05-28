@@ -2005,7 +2005,7 @@ async function confirmarLlegadaJustif(){
   } catch(e){ notif('❌ Error al actualizar','error'); }
 }
 
-async async function buscarPorNombre() {
+async function buscarPorNombre() {
   const q = document.getElementById('buscarNombre').value.trim().toLowerCase();
   const c = document.getElementById('resBusqueda');
   if (q.length < 2) { c.innerHTML=''; return; }
@@ -2591,7 +2591,7 @@ async function actualizarStats() {
   } catch(e) { console.error('Stats error',e); }
 }
 
-async // Convierte fecha input (YYYY-MM-DD) a formato peruano (DD/MM/YYYY)
+// Convierte fecha input (YYYY-MM-DD) a formato peruano (DD/MM/YYYY)
 function rFmtPE(iso){ if(!iso) return ''; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; }
 // Convierte fecha peruana a Date para comparar
 function rParseDate(f){ const p=f.split('/'); return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):null; }
@@ -3026,7 +3026,7 @@ async function procesarFotoQR(input) {
   else{res.innerHTML='<span style="color:var(--naranja)">⚠️ Ya registrado o no encontrado</span>';}
 }
 
-async async function procesarManual() {
+async function procesarManual() {
   const q=document.getElementById('manualInput').value.trim().toLowerCase();
   if(!q){notif('❌ Ingresa el nombre','error');return;}
   const todos=_estudiantesCache.length?_estudiantesCache:await fsGetAll('estudiantes');
@@ -3049,7 +3049,7 @@ async async function procesarManual() {
   }).join('');
 }
 
-async async function registrarManualPresente(qrStr) {
+async function registrarManualPresente(qrStr) {
   const ok=await registrarAsistencia(qrStr);
   if(ok){document.getElementById('manualInput').value='';document.getElementById('manualResultados').innerHTML='';cerrarScanner();}
 }
