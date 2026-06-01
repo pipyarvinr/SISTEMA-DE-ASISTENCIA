@@ -3050,8 +3050,38 @@ async function procesarManual() {
 }
 
 async function registrarManualPresente(qrStr) {
-  const ok=await registrarAsistencia(qrStr);
-  if(ok){document.getElementById('manualInput').value='';document.getElementById('manualResultados').innerHTML='';cerrarScanner();}
+  if (!ventanaActiva && sesion?.rol !== 'admin') { notif('⏰ Inicia la sesión primero (botón ▶)','error'); return; }
+  try {
+    let estudianteId, nombre='', grado='', seccion='';
+    const trimmed = qrStr.trim();
+    if (trimmed.startsWith('{')) {
+      const data = JSON.parse(trimmed);
+      estudianteId = data.id;
+      nombre = data.nombre || ''; grado = data.grado || ''; seccion = data.seccion || '';
+    } else {
+      estudianteId = trimmed;
+    }
+    if (!nombre) {
+      const est = await fsGet('estudiantes', estudianteId);
+      if (!est) { notif('❌ Estudiante no encontrado','error'); return; }
+      nombre=est.nombre; grado=est.grado; seccion=est.seccion;
+    }
+    if (sesion?.grados?.length && !sesion.grados.includes(grado)) { notif('❌ No tienes permiso sobre ese grado','error'); return; }
+    if (sesion?.secciones?.length && !sesion.secciones.includes(seccion)) { notif('❌ No tienes permiso sobre esa sección','error'); return; }
+    const fecha = getFecha();
+    const existente = await fsQuery('asistencia', FB.where('estudianteId','==',estudianteId), FB.where('fecha','==',fecha));
+    if (existente.length) { notif(`⚠️ ${nombre} ya fue registrado hoy`,'warning'); return; }
+    const hora = new Date().toLocaleTimeString('es-PE');
+    await fsAdd('asistencia',{ estudianteId, nombre, grado, seccion, fecha, hora, estado:'puntual', registradoPor: sesion?.uid||'manual' });
+    notif(`✅ Presente — ${nombre} — ${grado} "${seccion}" — ${hora}`,'success');
+    _asistenciaHoyCache = null;
+    renderListaAsistencia(); cargarTablaAsistencia(); actualizarStats();
+    document.getElementById('manualInput').value='';
+    document.getElementById('manualResultados').innerHTML='';
+    cerrarScanner();
+  } catch(err) {
+    console.error(err); notif('❌ Error al registrar','error');
+  }
 }
 
 async function registrarManualAusente(id,nombre,grado,seccion) {
