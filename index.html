@@ -3043,45 +3043,27 @@ async function procesarManual() {
       <div style="font-weight:700;font-size:13px;">${e.nombre.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
       <div style="font-size:11px;color:var(--texto-suave);margin-bottom:8px;">${e.grado.replace(/</g,'&lt;')} — Sección ${e.seccion.replace(/</g,'&lt;')}</div>
       <div style="display:flex;gap:6px;">
-        ${pres ? '<span class="badge badge-green">✅ Ya registrado</span>' : `<button class="btn btn-success btn-sm" onclick="registrarManualPresente('${qrStr}')">✅ Presente</button><button class="btn btn-sm" style="background:#fff3e0;color:#e67e22;border:1.5px solid #e67e22;" onclick="registrarManualTardanza('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">⏰ Tardanza</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌ Ausente</button>`}
+        ${pres ? '<span class="badge badge-green">✅ Ya registrado</span>' : `<button class="btn btn-success btn-sm" onclick="registrarManualPresente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">✅ Presente</button><button class="btn btn-sm" style="background:#fff3e0;color:#e67e22;border:1.5px solid #e67e22;" onclick="registrarManualTardanza('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">⏰ Tardanza</button><button class="btn btn-danger btn-sm" onclick="registrarManualAusente('${e.id}','${e.nombre.replace(/'/g,"\\'")}','${e.grado}','${e.seccion}')">❌ Ausente</button>`}
       </div>
     </div>`;
   }).join('');
 }
 
-async function registrarManualPresente(qrStr) {
+async function registrarManualPresente(id,nombre,grado,seccion) {
   if (!ventanaActiva && sesion?.rol !== 'admin') { notif('⏰ Inicia la sesión primero (botón ▶)','error'); return; }
-  try {
-    let estudianteId, nombre='', grado='', seccion='';
-    const trimmed = qrStr.trim();
-    if (trimmed.startsWith('{')) {
-      const data = JSON.parse(trimmed);
-      estudianteId = data.id;
-      nombre = data.nombre || ''; grado = data.grado || ''; seccion = data.seccion || '';
-    } else {
-      estudianteId = trimmed;
-    }
-    if (!nombre) {
-      const est = await fsGet('estudiantes', estudianteId);
-      if (!est) { notif('❌ Estudiante no encontrado','error'); return; }
-      nombre=est.nombre; grado=est.grado; seccion=est.seccion;
-    }
-    if (sesion?.grados?.length && !sesion.grados.includes(grado)) { notif('❌ No tienes permiso sobre ese grado','error'); return; }
-    if (sesion?.secciones?.length && !sesion.secciones.includes(seccion)) { notif('❌ No tienes permiso sobre esa sección','error'); return; }
-    const fecha = getFecha();
-    const existente = await fsQuery('asistencia', FB.where('estudianteId','==',estudianteId), FB.where('fecha','==',fecha));
-    if (existente.length) { notif(`⚠️ ${nombre} ya fue registrado hoy`,'warning'); return; }
-    const hora = new Date().toLocaleTimeString('es-PE');
-    await fsAdd('asistencia',{ estudianteId, nombre, grado, seccion, fecha, hora, estado:'puntual', registradoPor: sesion?.uid||'manual' });
-    notif(`✅ Presente — ${nombre} — ${grado} "${seccion}" — ${hora}`,'success');
-    _asistenciaHoyCache = null;
-    renderListaAsistencia(); cargarTablaAsistencia(); actualizarStats();
-    document.getElementById('manualInput').value='';
-    document.getElementById('manualResultados').innerHTML='';
-    cerrarScanner();
-  } catch(err) {
-    console.error(err); notif('❌ Error al registrar','error');
-  }
+  if (sesion?.grados?.length && !sesion.grados.includes(grado)) { notif('❌ No tienes permiso sobre ese grado','error'); return; }
+  if (sesion?.secciones?.length && !sesion.secciones.includes(seccion)) { notif('❌ No tienes permiso sobre esa sección','error'); return; }
+  const fecha = getFecha();
+  const existente = await fsQuery('asistencia', FB.where('estudianteId','==',id), FB.where('fecha','==',fecha));
+  if (existente.length) { notif(`⚠️ ${nombre} ya fue registrado hoy`,'warning'); return; }
+  const hora = new Date().toLocaleTimeString('es-PE');
+  await fsAdd('asistencia',{ estudianteId:id, nombre, grado, seccion, fecha, hora, estado:'puntual', registradoPor: sesion?.uid||'manual' });
+  notif(`✅ Presente — ${nombre} — ${grado} "${seccion}" — ${hora}`,'success');
+  _asistenciaHoyCache = null;
+  renderListaAsistencia(); cargarTablaAsistencia(); actualizarStats();
+  document.getElementById('manualInput').value='';
+  document.getElementById('manualResultados').innerHTML='';
+  cerrarScanner();
 }
 
 async function registrarManualAusente(id,nombre,grado,seccion) {
