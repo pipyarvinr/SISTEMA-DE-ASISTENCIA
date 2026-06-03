@@ -466,7 +466,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
     <button class="nav-btn" id="nav_asistencia" onclick="irPanel('asistencia')"><span class="nav-icon">📋</span> Asistencia</button>
     <button class="nav-btn" id="nav_justificaciones" onclick="irPanel('justificaciones')"><span class="nav-icon">📄</span> Justificaciones <span id="navAlertaBadge" style="display:none;background:var(--rojo);color:white;border-radius:99px;padding:1px 7px;font-size:10px;margin-left:4px;">!</span></button>
     <button class="nav-btn" id="nav_reportes" onclick="irPanel('reportes')"><span class="nav-icon">📊</span> Reportes</button>
-
+    <button class="nav-btn" id="nav_envivo" onclick="irPanel('envivo')"><span class="nav-icon">📡</span> En Vivo <span id="enVivoBadge" style="display:none;background:#2ecc71;color:white;border-radius:99px;padding:1px 7px;font-size:10px;margin-left:4px;">●</span></button>
     <button class="nav-btn" id="nav_refuerzo" onclick="irPanel('refuerzo')" style="display:none;"><span class="nav-icon">📌</span> Refuerzo</button>
     <button class="nav-btn" id="nav_incidencias" onclick="irPanel('incidencias')" style="display:none;"><span class="nav-icon">📓</span> Incidencias</button>
     <button class="nav-btn" id="nav_permisos" onclick="irPanel('permisos')" style="display:none;"><span class="nav-icon">🚶</span> Permisos</button>
@@ -794,7 +794,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
 
           <!-- Tabla -->
           <div class="table-wrap">
-            <table><thead><tr><th>Estudiante</th><th>Grado</th><th>Sección</th><th>Fecha</th><th>Estado</th><th>Justificación</th></tr></thead>
+            <table><thead><tr><th>Estudiante</th><th>Grado</th><th>Sección</th><th>Fecha</th><th>Estado</th><th>Justificación</th><th></th></tr></thead>
             <tbody id="tablaReporte"></tbody></table>
           </div>
         </div>
@@ -917,6 +917,81 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
         </div>
       </div>
 
+      <!-- ══ PANEL EN VIVO ══ -->
+      <div id="panel_envivo" class="hide">
+        <div class="card" style="margin-bottom:14px;padding:14px 18px;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span style="font-size:13px;font-weight:700;color:var(--texto);">📡 Monitoreo en tiempo real</span>
+            <div style="display:flex;gap:8px;margin-left:auto;flex-wrap:wrap;">
+              <select id="evGrado" onchange="evAplicarFiltro()" style="padding:7px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:12px;font-family:inherit;background:white;color:var(--texto);">
+                <option value="">Todos los grados</option>
+                <option value="1ro">1ro</option><option value="2do">2do</option>
+                <option value="3ro">3ro</option><option value="4to">4to</option><option value="5to">5to</option>
+              </select>
+              <select id="evSeccion" onchange="evAplicarFiltro()" style="padding:7px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:12px;font-family:inherit;background:white;color:var(--texto);">
+                <option value="">Todas las secciones</option>
+                <option value="A">A</option><option value="B">B</option>
+                <option value="C">C</option><option value="D">D</option><option value="E">E</option>
+              </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#2ecc71;font-weight:700;">
+              <span style="width:8px;height:8px;background:#2ecc71;border-radius:50%;display:inline-block;animation:pulse 1.5s infinite;"></span> En vivo
+            </div>
+          </div>
+        </div>
+
+        <div class="stats-row" style="margin-bottom:14px;">
+          <div class="stat-box" style="border-left:4px solid #2ecc71;">
+            <div class="stat-num" id="evPresentes" style="color:#2ecc71;">0</div>
+            <div class="stat-lbl">✅ Presentes</div>
+          </div>
+          <div class="stat-box red" style="border-left:4px solid var(--rojo);">
+            <div class="stat-num" id="evAusentes">0</div>
+            <div class="stat-lbl">❌ Ausentes</div>
+          </div>
+          <div class="stat-box blue" style="border-left:4px solid var(--azul);">
+            <div class="stat-num" id="evJustificados" style="color:var(--azul);">0</div>
+            <div class="stat-lbl">📄 Justificados</div>
+          </div>
+          <div class="stat-box" style="border-left:4px solid var(--naranja);">
+            <div class="stat-num" id="evTotal" style="color:var(--naranja);">0</div>
+            <div class="stat-lbl">👥 Total alumnos</div>
+          </div>
+          <div class="stat-box" style="border-left:4px solid var(--morado);">
+            <div class="stat-num" id="evPct" style="color:var(--morado);">—</div>
+            <div class="stat-lbl">📈 % Asistencia</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+          <div class="card" style="margin:0;padding:18px;">
+            <div class="card-header" style="margin-bottom:14px;padding-bottom:10px;">
+              <span class="card-title">📊 Asistencia por sección</span>
+            </div>
+            <canvas id="evChart" height="200"></canvas>
+          </div>
+          <div class="card" style="margin:0;padding:18px;">
+            <div class="card-header" style="margin-bottom:10px;padding-bottom:10px;">
+              <span class="card-title">🕐 Últimos registros</span>
+              <span id="evUltimosCount" style="font-size:11px;color:var(--texto-suave);"></span>
+            </div>
+            <div id="evUltimosList" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto;"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">📋 Estado completo</span>
+            <span id="evTablaInfo" style="font-size:11px;color:var(--texto-suave);"></span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Estudiante</th><th>Grado</th><th>Sección</th><th>Hora</th><th>Estado</th></tr></thead>
+              <tbody id="evTabla"></tbody>
+            </table>
+          </div>
+        </div>
+      </div><!-- /panel_envivo -->
 
     </div><!-- /content -->
   </div><!-- /main -->
@@ -930,7 +1005,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
   <button class="mobile-nav-btn" id="mn_incidencias" onclick="irPanel('incidencias')"><span>📓</span>Incidencias</button>
   <button class="mobile-nav-btn" id="mn_justificaciones" onclick="irPanel('justificaciones')"><span>📄</span>Justif.</button>
   <button class="mobile-nav-btn" id="mn_reportes" onclick="irPanel('reportes')"><span>📊</span>Reportes</button>
-
+  <button class="mobile-nav-btn" id="mn_envivo" onclick="irPanel('envivo')"><span>📡</span>En Vivo</button>
   <button class="mobile-nav-btn" id="mn_refuerzo" onclick="irPanel('refuerzo')"><span>📌</span>Refuerzo</button>
   <button class="mobile-nav-btn" id="mn_padre" onclick="irPanel('padre')"><span>👪</span>Mi Hijo</button>
 </nav>
@@ -1217,6 +1292,9 @@ let chartDia = null;
 let chartGrado = null;
 let _estudiantesCache = [];
 let _asistenciaHoyCache = [];
+let _reporteEstudiantes = [];
+let _reporteAsistencias = [];
+let _reporteJustifs = [];
 let _justificacionesCache = [];
 
 let _ignorarAuthChange = false;
@@ -1376,13 +1454,13 @@ function entrarApp() {
   document.getElementById('loginBtn').textContent = '🔐 Ingresar';
   const iconos = { admin:'👑', auxiliar:'🛡️', tutor:'📖', padre:'👪' };
   document.getElementById('sessionBadge').textContent = (iconos[sesion.rol]||'') + ' ' + sesion.nombre;
-  const todos = ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_padre','nav_refuerzo','nav_incidencias','nav_permisos'];
+  const todos = ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_padre','nav_refuerzo','nav_incidencias','nav_permisos','nav_envivo'];
   todos.forEach(n => { const el=document.getElementById(n); if(el) el.style.display=''; });
-  const todosMn = ['mn_admin','mn_asistencia','mn_justificaciones','mn_reportes','mn_padre','mn_refuerzo','mn_incidencias','mn_permisos'];
+  const todosMn = ['mn_admin','mn_asistencia','mn_justificaciones','mn_reportes','mn_padre','mn_refuerzo','mn_incidencias','mn_permisos','mn_envivo'];
   todosMn.forEach(n => { const el=document.getElementById(n); if(el) el.style.display=''; });
   if (sesion.rol === 'padre') {
-    ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_refuerzo','nav_incidencias','nav_permisos'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
-    ['mn_admin','mn_asistencia','mn_justificaciones','mn_reportes','mn_refuerzo','mn_incidencias','mn_permisos'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['nav_admin','nav_asistencia','nav_justificaciones','nav_reportes','nav_refuerzo','nav_incidencias','nav_permisos','nav_envivo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['mn_admin','mn_asistencia','mn_justificaciones','mn_reportes','mn_refuerzo','mn_incidencias','mn_permisos','mn_envivo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('timerBanner').style.display = 'none';
   } else if (sesion.rol === 'tutor') {
     ['nav_admin','nav_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
@@ -1408,6 +1486,7 @@ function entrarApp() {
 async function cerrarSesion() {
   ventanaActiva = false;
   if (temporizador) { clearInterval(temporizador); temporizador=null; }
+  evDetener();
   detenerCamara();
   sesion = null;
   _estudiantesCache = []; _asistenciaHoyCache = []; _justificacionesCache = [];
@@ -1450,7 +1529,7 @@ function actualizarFecha() {
     new Date().toLocaleDateString('es-PE',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
 }
 
-const paneles = ['admin','asistencia','justificaciones','reportes','padre','refuerzo','incidencias','permisos'];
+const paneles = ['admin','asistencia','justificaciones','reportes','padre','refuerzo','incidencias','permisos','envivo'];
 function irPanel(panel) {
   paneles.forEach(p => {
     const el = document.getElementById('panel_'+p); if(el) el.classList.add('hide');
@@ -1460,15 +1539,16 @@ function irPanel(panel) {
   const el = document.getElementById('panel_'+panel); if(el) el.classList.remove('hide');
   const nav = document.getElementById('nav_'+panel); if(nav) nav.classList.add('active');
   const mn = document.getElementById('mn_'+panel); if(mn) mn.classList.add('active');
-  const tits = { admin:'Administración', asistencia:'Control de Asistencia', justificaciones:'Justificaciones', reportes:'Reportes y Estadísticas', padre:'Mi Hijo/a', refuerzo:'Refuerzo Escolar', incidencias:'Cuaderno de Incidencias', permisos:'Permisos al Baño' };
+  const tits = { admin:'Administración', asistencia:'Control de Asistencia', justificaciones:'Justificaciones', reportes:'Reportes y Estadísticas', padre:'Mi Hijo/a', refuerzo:'Refuerzo Escolar', incidencias:'Cuaderno de Incidencias', permisos:'Permisos al Baño', envivo:'📡 En Vivo' };
   document.getElementById('topbarTitle').textContent = tits[panel] || '';
   if (panel==='admin') { renderEstudiantes(); renderListaUsuarios(); actualizarStats(); }
   if (panel==='asistencia') { renderListaAsistencia(); cargarTablaAsistencia(); renderAlertas(); }
   if (panel==='justificaciones') { renderJustificaciones(); }
-  if (panel==='reportes') { document.getElementById('tablaReporte').innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--texto-suave);">Selecciona los filtros y presiona 🔍 Buscar</td></tr>'; }
+  if (panel==='reportes') { document.getElementById('tablaReporte').innerHTML='<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--texto-suave);">Selecciona los filtros y presiona 🔍 Buscar</td></tr>'; }
   if (panel==='refuerzo') { rfCargarPanel(); }
   if (panel==='incidencias') { incCargarPanel(); }
   if (panel==='permisos') { permCargarPanel(); }
+  if (panel==='envivo') { evIniciar(); }
 }
 
 function iniciarSesion() {
@@ -1812,12 +1892,13 @@ async function registrarAsistencia(qrData) {
 async function renderListaAsistencia() {
   const c = document.getElementById('listaAsistencia');
   if (!c) return;
+  // FIX-ROL-7: si es tutor o auxiliar y no tiene grados/secciones asignados, mostrar aviso.
   if ((sesion?.rol === 'tutor' || sesion?.rol === 'auxiliar') && !sesion?.grados?.length && !sesion?.secciones?.length) {
     c.innerHTML='<div style="padding:24px;text-align:center;color:var(--texto-suave);grid-column:1/-1;">⚠️ No tienes grados ni secciones asignados.<br>Pide al Administrador que configure tu cuenta.</div>';
     return;
   }
-  let lista = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
-  if (!_estudiantesCache.length) _estudiantesCache = lista;
+  let lista = await fsGetAll('estudiantes');
+  _estudiantesCache = lista;
   const gf = document.getElementById('fGradoAux')?.value;
   const sf = document.getElementById('fSecAux')?.value;
   if (sesion?.grados?.length) lista = lista.filter(e=>sesion.grados.includes(e.grado));
@@ -1825,8 +1906,8 @@ async function renderListaAsistencia() {
   if (gf) lista = lista.filter(e=>e.grado===gf);
   if (sf) lista = lista.filter(e=>e.seccion===sf);
   const fecha = getFecha();
-  const asist = _asistenciaHoyCache.length ? _asistenciaHoyCache : await fsQuery('asistencia', FB.where('fecha','==',fecha));
-  if (!_asistenciaHoyCache.length) _asistenciaHoyCache = asist;
+  const asist = await fsQuery('asistencia', FB.where('fecha','==',fecha));
+  _asistenciaHoyCache = asist;
   const presSet = new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
   const ausenteSet = new Set(asist.filter(a=>a.estado==='ausente').map(a=>a.estudianteId));
   const justifs = await fsQuery('justificaciones', FB.where('fecha','==',fecha), FB.where('estado','==','aprobado'));
@@ -1866,8 +1947,7 @@ async function desmarcarAsistencia(estudianteId, nombre) {
 
 async function cargarTablaAsistencia() {
   const fecha = getFecha();
-  let asist = _asistenciaHoyCache.length ? _asistenciaHoyCache : await fsQuery('asistencia', FB.where('fecha','==',fecha));
-  if (!_asistenciaHoyCache.length) _asistenciaHoyCache = asist;
+  let asist = await fsQuery('asistencia', FB.where('fecha','==',fecha));
   if (sesion?.rol === 'tutor' || sesion?.rol === 'auxiliar') {
     if (sesion?.grados?.length) asist = asist.filter(a => sesion.grados.includes(a.grado));
     if (sesion?.secciones?.length) asist = asist.filter(a => sesion.secciones.includes(a.seccion));
@@ -2544,7 +2624,7 @@ async function generarReporte() {
   if (!fi || !ff) { notif('⚠️ Debes seleccionar una fecha de inicio y fin','warning'); return; }
   const dias = (new Date(ff) - new Date(fi)) / (1000*60*60*24);
   if (dias < 0) { notif('❌ La fecha de inicio no puede ser mayor a la fecha fin','error'); return; }
-  if (dias > 30) { notif('⚠️ El reporte no puede superar 30 días','warning'); return; }
+  if (dias > 90) { notif('⚠️ El reporte no puede superar 90 días','warning'); return; }
 
   const fiPE = rFmtPE(fi), ffPE = rFmtPE(ff);
   const grado   = document.getElementById('rGrado')?.value;
@@ -2582,8 +2662,8 @@ async function generarReporte() {
       const est=a.estado;
       const estadoBadge=est==='puntual'?'<span class="badge badge-green">✅ Puntual</span>':est==='tardanza'?'<span class="badge" style="background:#fef9ec;color:#784212;">⏰ Tardanza</span>':est==='ausente'?'<span class="badge badge-red">❌ Ausente</span>':est==='justificado'?'<span class="badge badge-blue">📄 Justificado</span>':'<span class="badge badge-green">✅ Presente</span>';
       const rowClass=est==='ausente'?'row-ausente':est==='tardanza'?'row-tardanza':'row-presente';
-      return `<tr class="${rowClass}"><td>${e.nombre}</td><td>${e.grado}</td><td>${e.seccion}</td><td>${a.fecha}</td><td>${estadoBadge}</td><td>${j?j.motivo:'—'}</td></tr>`;
-    }).join('')||'<tr><td colspan="6" style="text-align:center;padding:18px;color:var(--texto-suave);">Sin datos para este período</td></tr>';
+      return `<tr class="${rowClass}"><td>${e.nombre}</td><td>${e.grado}</td><td>${e.seccion}</td><td>${a.fecha}</td><td>${estadoBadge}</td><td>${j?j.motivo:'—'}</td><td><button class="btn btn-ghost btn-sm" style="font-size:11px;padding:3px 8px;" onclick="reporteIndividual('${e.id}')" title="Reporte individual">📄</button></td></tr>`;
+    }).join('')||'<tr><td colspan="7" style="text-align:center;padding:18px;color:var(--texto-suave);">Sin datos para este período</td></tr>';
   }
 
   // ── Gráficos ──
@@ -2602,6 +2682,11 @@ async function generarReporte() {
 
   // ── Alumnos en riesgo ──
   rRenderRiesgo(estudiantes, asistFilt);
+
+  // ── Guardar datos para reporte individual (cero lecturas extra) ──
+  _reporteEstudiantes = estudiantes;
+  _reporteAsistencias = asistFilt;
+  _reporteJustifs = justifs;
 }
 
 function rRenderRanking(estudiantes, asistFilt) {
@@ -2717,7 +2802,7 @@ async function exportarPDF() {
   if(!fi||!ff){notif('⚠️ Selecciona un rango de fechas antes de exportar','warning');return;}
   const dias=(new Date(ff)-new Date(fi))/(1000*60*60*24);
   if(dias<0){notif('❌ La fecha de inicio no puede ser mayor a la fecha fin','error');return;}
-  if(dias>30){notif('⚠️ El PDF no puede superar 30 días','warning');return;}
+  if(dias>90){notif('⚠️ El PDF no puede superar 90 días','warning');return;}
   const {estudiantes,asistencias,justifs} = await rCargarDatos();
   const gradoOrden=['1ro','2do','3ro','4to','5to'], secOrden=['A','B','C','D','E'];
   const fmtCorta=f=>{const p=f.split('/');return p.length>=2?p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0'):f;};
@@ -2732,6 +2817,104 @@ async function exportarPDF() {
   if(!w){notif('❌ Ventana emergente bloqueada.','error');return;}
   w.document.write(html);w.document.close();setTimeout(()=>w.print(),700);
   notif('📥 PDF listo','success');
+}
+
+function reporteIndividual(estudianteId) {
+  if (!_reporteEstudiantes.length || !_reporteAsistencias.length) {
+    notif('⚠️ Primero genera un reporte con 🔍 Buscar','warning'); return;
+  }
+  const e = _reporteEstudiantes.find(x => x.id === estudianteId);
+  if (!e) { notif('❌ Estudiante no encontrado en el reporte actual','error'); return; }
+
+  const asist = _reporteAsistencias
+    .filter(a => a.estudianteId === estudianteId)
+    .sort((a, b) => {
+      const pa = a.fecha.split('/'), pb = b.fecha.split('/');
+      return new Date(+pa[2],+pa[1]-1,+pa[0]) - new Date(+pb[2],+pb[1]-1,+pb[0]);
+    });
+
+  const fi = document.getElementById('rFechaInicio')?.value || '';
+  const ff = document.getElementById('rFechaFin')?.value || '';
+  const fmtPE = d => { if (!d) return ''; const [y,m,dd] = d.split('-'); return `${dd}/${m}/${y}`; };
+
+  const total      = asist.length;
+  const presentes  = asist.filter(a => ['puntual','presente'].includes(a.estado)).length;
+  const tardanzas  = asist.filter(a => a.estado === 'tardanza').length;
+  const ausentes   = asist.filter(a => a.estado === 'ausente').length;
+  const justificados = asist.filter(a => a.estado === 'justificado').length;
+  const pct = total > 0 ? Math.round(((presentes + tardanzas + justificados) / total) * 100) : 0;
+  const colorPct = pct >= 90 ? '#1a6b3a' : pct >= 75 ? '#e67e22' : '#e8000d';
+
+  const fmtCorta = f => { const p = f.split('/'); return p.length >= 2 ? p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0') : f; };
+  const estadoLabel = est =>
+    est === 'puntual'     ? '<span style="color:#1a6b3a;font-weight:700;">✔ Puntual</span>'
+    : est === 'presente'  ? '<span style="color:#1a6b3a;font-weight:700;">✔ Presente</span>'
+    : est === 'tardanza'  ? '<span style="color:#e67e22;font-weight:700;">⏰ Tardanza</span>'
+    : est === 'ausente'   ? '<span style="color:#e8000d;font-weight:700;">✖ Ausente</span>'
+    : est === 'justificado' ? '<span style="color:#1a5276;font-weight:700;">📄 Justificado</span>'
+    : '<span>—</span>';
+
+  const filas = asist.map((a, i) => {
+    const j = _reporteJustifs.find(x => x.estudianteId === estudianteId && x.fecha === a.fecha);
+    const bg = a.estado === 'ausente' ? '#fff5f5' : a.estado === 'tardanza' ? '#fffbf0' : 'white';
+    return `<tr style="background:${bg};">
+      <td style="text-align:center;border:1px solid #ddd;padding:5px 8px;">${i+1}</td>
+      <td style="border:1px solid #ddd;padding:5px 8px;">${fmtCorta(a.fecha)}</td>
+      <td style="border:1px solid #ddd;padding:5px 8px;text-align:center;">${estadoLabel(a.estado)}</td>
+      <td style="border:1px solid #ddd;padding:5px 8px;font-size:10px;color:#555;">${j ? j.motivo : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<html><head><meta charset="UTF-8"><title>Reporte Individual — ${e.nombre}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; margin: 20px; color: #222; }
+    h1 { font-size: 15px; color: #b00008; margin-bottom: 2px; }
+    .sub { font-size: 11px; color: #666; margin-bottom: 16px; }
+    .datos { display: flex; gap: 32px; margin-bottom: 18px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 6px; padding: 12px 18px; }
+    .dato-item { display: flex; flex-direction: column; }
+    .dato-lbl { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: .5px; }
+    .dato-val { font-size: 14px; font-weight: 700; color: #222; }
+    .resumen { display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap; }
+    .res-box { flex: 1; min-width: 80px; text-align: center; padding: 10px 8px; border-radius: 6px; border: 1px solid #ddd; }
+    .res-num { font-size: 22px; font-weight: 700; }
+    .res-lbl { font-size: 10px; color: #666; margin-top: 2px; }
+    table { border-collapse: collapse; width: 100%; font-size: 11px; }
+    th { background: #b00008; color: white; padding: 6px 8px; text-align: left; border: 1px solid #900; }
+    @media print { body { margin: 8px; } button { display: none; } }
+  </style></head><body>
+  <h1>📋 IE N.° 0148 — Maestro Víctor Raúl Haya de la Torre</h1>
+  <div class="sub">Reporte Individual de Asistencia &nbsp;·&nbsp; Período: ${fmtPE(fi)} al ${fmtPE(ff)}</div>
+
+  <div class="datos">
+    <div class="dato-item"><span class="dato-lbl">Apellidos y Nombres</span><span class="dato-val">${e.nombre}</span></div>
+    <div class="dato-item"><span class="dato-lbl">Grado</span><span class="dato-val">${e.grado}</span></div>
+    <div class="dato-item"><span class="dato-lbl">Sección</span><span class="dato-val">${e.seccion}</span></div>
+  </div>
+
+  <div class="resumen">
+    <div class="res-box"><div class="res-num" style="color:#1a6b3a;">${presentes}</div><div class="res-lbl">✔ Puntual</div></div>
+    <div class="res-box"><div class="res-num" style="color:#e67e22;">${tardanzas}</div><div class="res-lbl">⏰ Tardanza</div></div>
+    <div class="res-box"><div class="res-num" style="color:#e8000d;">${ausentes}</div><div class="res-lbl">✖ Ausente</div></div>
+    <div class="res-box"><div class="res-num" style="color:#1a5276;">${justificados}</div><div class="res-lbl">📄 Justif.</div></div>
+    <div class="res-box"><div class="res-num" style="color:${colorPct};">${pct}%</div><div class="res-lbl">% Asistencia</div></div>
+  </div>
+
+  <table>
+    <thead><tr><th>#</th><th>Fecha</th><th>Estado</th><th>Justificación</th></tr></thead>
+    <tbody>${filas || '<tr><td colspan="4" style="text-align:center;padding:12px;color:#888;">Sin registros en este período</td></tr>'}</tbody>
+  </table>
+
+  <div style="margin-top:18px;font-size:10px;color:#888;border-top:1px solid #ddd;padding-top:8px;">
+    Generado el ${new Date().toLocaleDateString('es-PE')} a las ${new Date().toLocaleTimeString('es-PE')} &nbsp;·&nbsp; Sistema de Asistencia QR — IE N.° 0148
+  </div>
+  </body></html>`;
+
+  const w = window.open('', '_blank');
+  if (!w) { notif('❌ Ventana emergente bloqueada. Permite ventanas emergentes para este sitio.','error'); return; }
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => w.print(), 600);
+  notif(`📄 Reporte de ${e.nombre} listo`,'success');
 }
 
 
@@ -3740,6 +3923,180 @@ async function importLeerArchivo(file) {
       };
       reader.onerror = reject;
       reader.readAsArrayBuffer(file);
+    }
+  });
+}
+
+// ══ MÓDULO EN VIVO ══
+let _evUnsubscribe = null;
+let _evAsistencia  = [];
+let _evEstudiantes = [];
+let _evChart       = null;
+
+// Estados que cuentan como "asistió" en este sistema
+const EV_ASISTIO = new Set(['presente','puntual','tardanza','justificado']);
+const EV_PRESENTE = new Set(['presente','puntual','tardanza']); // sin justificado
+
+function evDetener() {
+  if (_evUnsubscribe) { _evUnsubscribe(); _evUnsubscribe = null; }
+  _evEstudiantes = []; // BUG3-FIX: limpiar caché al salir
+  _evAsistencia  = [];
+  const badge = document.getElementById('enVivoBadge');
+  if (badge) badge.style.display = 'none';
+}
+
+async function evIniciar() {
+  if (_evUnsubscribe) { evAplicarFiltro(); return; }
+
+  const badge = document.getElementById('enVivoBadge');
+  if (badge) badge.style.display = '';
+
+  // Siempre recarga estudiantes al abrir (datos frescos)
+  _evEstudiantes = await fsGetAll('estudiantes'); // BUG3-FIX: no reusar caché sucia
+
+  const fecha = getFecha();
+  const q = FB.query(
+    FB.collection(FB.db, 'asistencia'),
+    FB.where('fecha', '==', fecha)
+  );
+
+  _evUnsubscribe = FB.onSnapshot(q, (snap) => {
+    _evAsistencia = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    evAplicarFiltro();
+  }, (err) => { console.error('onSnapshot error:', err); });
+}
+
+function evAplicarFiltro() {
+  // BUG4-FIX: guardia — si aún no hay datos, no hacer nada
+  if (!_evEstudiantes.length) return;
+
+  const grado   = document.getElementById('evGrado')?.value   || '';
+  const seccion = document.getElementById('evSeccion')?.value || '';
+
+  let estudiantes = [..._evEstudiantes];
+  if (sesion?.rol === 'tutor') {
+    if (sesion.grados?.length)    estudiantes = estudiantes.filter(e => sesion.grados.includes(e.grado));
+    if (sesion.secciones?.length) estudiantes = estudiantes.filter(e => sesion.secciones.includes(e.seccion));
+  }
+  if (grado)   estudiantes = estudiantes.filter(e => e.grado   === grado);
+  if (seccion) estudiantes = estudiantes.filter(e => e.seccion === seccion);
+
+  const ids      = new Set(estudiantes.map(e => e.id));
+  const asistencia = _evAsistencia.filter(a => ids.has(a.estudianteId));
+
+  // BUG1+BUG5-FIX: usar estados reales del sistema
+  const presentes    = asistencia.filter(a => EV_PRESENTE.has(a.estado)).length;
+  const justificados = asistencia.filter(a => a.estado === 'justificado').length;
+  const conRegistro  = new Set(asistencia.map(a => a.estudianteId)).size;
+  const total        = estudiantes.length;
+  const ausentes     = Math.max(0, total - conRegistro);
+  // % = quienes asistieron de alguna forma (presente+puntual+tardanza+justificado)
+  const asistieron   = asistencia.filter(a => EV_ASISTIO.has(a.estado)).length;
+  const pct          = total > 0 ? Math.round((asistieron / total) * 100) : 0;
+
+  document.getElementById('evPresentes').textContent    = presentes;
+  document.getElementById('evAusentes').textContent     = ausentes;
+  document.getElementById('evJustificados').textContent = justificados;
+  document.getElementById('evTotal').textContent        = total;
+  document.getElementById('evPct').textContent          = total > 0 ? pct + '%' : '—';
+
+  // Últimos 15 registros
+  const ultimos = [...asistencia]
+    .filter(a => a.hora)
+    .sort((a, b) => (b.hora || '').localeCompare(a.hora || ''))
+    .slice(0, 15);
+
+  const lista = document.getElementById('evUltimosList');
+  document.getElementById('evUltimosCount').textContent = asistencia.length + ' registros';
+  if (!ultimos.length) {
+    lista.innerHTML = '<div style="font-size:12px;color:var(--texto-suave);padding:10px 0;">Sin registros aún hoy.</div>';
+  } else {
+    lista.innerHTML = ultimos.map(a => {
+      const esPresente = EV_PRESENTE.has(a.estado);
+      const color = esPresente ? '#2ecc71' : a.estado === 'justificado' ? 'var(--azul)' : 'var(--rojo)';
+      const icono = esPresente ? '✅' : a.estado === 'justificado' ? '📄' : '❌';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--gris-bg);border-radius:8px;border-left:3px solid ${color};">
+        <span style="font-size:14px;">${icono}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;font-weight:700;color:var(--texto);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.estudianteNombre||'—'}</div>
+          <div style="font-size:10px;color:var(--texto-suave);">${a.grado||''} ${a.seccion||''}</div>
+        </div>
+        <div style="font-size:11px;font-weight:700;color:var(--texto-suave);white-space:nowrap;">${a.hora||''}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // Tabla completa
+  const tbody = document.getElementById('evTabla');
+  document.getElementById('evTablaInfo').textContent = `${estudiantes.length} alumnos`;
+  const mapaAsist = {};
+  asistencia.forEach(a => { mapaAsist[a.estudianteId] = a; });
+  tbody.innerHTML = estudiantes
+    .sort((a,b) => a.grado.localeCompare(b.grado) || a.seccion.localeCompare(b.seccion) || a.nombre.localeCompare(b.nombre))
+    .map(e => {
+      const reg    = mapaAsist[e.id];
+      const estado = reg?.estado || 'ausente';
+      const hora   = reg?.hora   || '—';
+      const esP    = EV_PRESENTE.has(estado);
+      const color  = esP ? '#2ecc71' : estado === 'justificado' ? 'var(--azul)' : 'var(--rojo)';
+      const etiq   = estado === 'puntual'     ? '✅ Puntual'
+                   : estado === 'tardanza'    ? '⏰ Tardanza'
+                   : estado === 'justificado' ? '📄 Justificado'
+                   : estado === 'ausente'     ? '❌ Ausente'
+                   :                           '✅ Presente';
+      return `<tr>
+        <td style="font-weight:600;">${e.nombre}</td>
+        <td>${e.grado}</td>
+        <td>${e.seccion}</td>
+        <td style="font-family:'Space Mono',monospace;font-size:12px;">${hora}</td>
+        <td><span style="color:${color};font-weight:700;font-size:12px;">${etiq}</span></td>
+      </tr>`;
+    }).join('');
+
+  evRenderChart(estudiantes, asistencia);
+}
+
+function evRenderChart(estudiantes, asistencia) {
+  // BUG2-FIX: agrupar por grado+seccion para no mezclar 1A con 2A
+  const claves = [...new Set(estudiantes.map(e => e.grado + '|' + e.seccion))].sort();
+  if (!claves.length) return;
+
+  const mapaAsist = {};
+  asistencia.forEach(a => { mapaAsist[a.estudianteId] = a; });
+
+  const labels       = claves.map(k => { const [g,s]=k.split('|'); return g+' '+s; });
+  const dataPresentes = claves.map(k => {
+    const [g,s] = k.split('|');
+    const alumnos = estudiantes.filter(e => e.grado===g && e.seccion===s);
+    return alumnos.filter(e => EV_ASISTIO.has(mapaAsist[e.id]?.estado)).length;
+  });
+  const dataAusentes = claves.map(k => {
+    const [g,s] = k.split('|');
+    const alumnos = estudiantes.filter(e => e.grado===g && e.seccion===s);
+    const conReg = new Set(asistencia.filter(a => alumnos.find(e=>e.id===a.estudianteId)).map(a=>a.estudianteId)).size;
+    return Math.max(0, alumnos.length - conReg);
+  });
+
+  const ctx = document.getElementById('evChart');
+  if (!ctx) return;
+  if (_evChart) { _evChart.destroy(); _evChart = null; }
+
+  _evChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Asistieron', data: dataPresentes, backgroundColor: '#2ecc71', borderRadius: 6 },
+        { label: 'Ausentes',   data: dataAusentes,  backgroundColor: '#e8000d', borderRadius: 6 }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 11 } } } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+      }
     }
   });
 }
