@@ -2123,7 +2123,7 @@ async function renderHijosInfo(hijos) {
         const rFiltrado=r.filter(a=>ultimas2Semanas.includes(a.fecha));
         asistSemana.push(...rFiltrado);
         const hoy_reg=rFiltrado.find(a=>a.fecha===fecha);
-        if(hoy_reg){ if(hoy_reg.estado==='ausente') ausenteSet.add(h.id); else if(hoy_reg.estado==='tardanza') tardSet.set(h.id,hoy_reg.hora||''); else presSet.add(h.id); }
+        if(hoy_reg){ if(hoy_reg.estado==='ausente') ausenteSet.add(h.id); else if(hoy_reg.estado==='tardanza') tardSet.set(h.id,hoy_reg.hora||''); else if(hoy_reg.estado==='puntual'||hoy_reg.estado==='presente'||hoy_reg.estado==='justificado') presSet.add(h.id); }
       } catch(e2){}
     }
     for(const h of hijos) {
