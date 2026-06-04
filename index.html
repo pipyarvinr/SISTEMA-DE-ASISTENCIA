@@ -2123,7 +2123,7 @@ async function renderHijosInfo(hijos) {
         const rFiltrado=r.filter(a=>ultimas2Semanas.includes(a.fecha));
         asistSemana.push(...rFiltrado);
         const hoy_reg=rFiltrado.find(a=>a.fecha===fecha);
-        if(hoy_reg){ if(hoy_reg.estado==='ausente') ausenteSet.add(h.id); else if(hoy_reg.estado==='tardanza') tardSet.set(h.id,hoy_reg.hora||''); else if(hoy_reg.estado!=='justificado') presSet.add(h.id); }
+        if(hoy_reg){ if(hoy_reg.estado==='ausente') ausenteSet.add(h.id); else if(hoy_reg.estado==='tardanza') tardSet.set(h.id,hoy_reg.hora||''); else presSet.add(h.id); }
       } catch(e2){}
     }
     for(const h of hijos) {
@@ -2208,7 +2208,7 @@ async function renderHijosInfo(hijos) {
       const esHoy=f===fecha;
       let bg='#f0f2f5',txtColor='#bbb',icono='',borderColor='transparent',sombra='';
       if(esFuturo){bg='#f8f9fa';txtColor='#ccc';icono='';}
-      else if(est==='puntual'||est==='presente'){bg='#00C853';txtColor='#fff';icono='✓';sombra='0 4px 12px rgba(0,200,83,.4)';}
+      else if(est==='puntual'||est==='presente'||est==='justificado'){bg='#00C853';txtColor='#fff';icono='✓';sombra='0 4px 12px rgba(0,200,83,.4)';}
       else if(est==='tardanza'){bg='#FF6D00';txtColor='#fff';icono='⏰';sombra='0 4px 12px rgba(255,109,0,.4)';}
       else if(est==='ausente'){bg='#D50000';txtColor='#fff';icono='✗';sombra='0 4px 12px rgba(213,0,0,.4)';}
       else{bg='#f0f2f5';txtColor='#bbb';icono='•';}
@@ -2248,7 +2248,7 @@ async function renderHijosInfo(hijos) {
             const d2=new Date(parseInt(partes[2]),parseInt(partes[1])-1,parseInt(partes[0]),12,0,0);
             const esFut=d2>hoy&&f!==fecha;
             let dot='#e0e0e0',label='—';
-            if(!esFut&&(est==='puntual'||est==='presente')){dot='#00C853';label='Asistió';}
+            if(!esFut&&(est==='puntual'||est==='presente'||est==='justificado')){dot='#00C853';label='Asistió';}
             else if(!esFut&&est==='tardanza'){dot='#FF6D00';label='Tarde';}
             else if(!esFut&&est==='ausente'){dot='#D50000';label='Faltó';}
             else if(esFut){dot='#e0e0e0';label='...';}
