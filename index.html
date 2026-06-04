@@ -1998,8 +1998,8 @@ async function confirmarLlegadaJustif(){
     // Buscar el registro de asistencia de hoy para ese estudiante
     const r=await fsQuery('asistencia',FB.where('estudianteId','==',_llegadaJustifEstId),FB.where('fecha','==',fecha));
     if(!r.length){notif('❌ No se encontró registro de asistencia','error');return;}
-    // Actualizar estado a justificado
-    await fsUpdate('asistencia',r[0].id,{estado:'justificado',motivoJustif:motivo,observacionJustif:observacion||'',justificadoPor:sesion?.nombre||'',horaJustif:hora});
+    // Actualizar estado a puntual (justificado por ausencia de QR/cuaderno)
+    await fsUpdate('asistencia',r[0].id,{estado:'puntual',motivoJustif:motivo,observacionJustif:observacion||'Sin QR/cuaderno',justificadoPor:sesion?.nombre||'',horaJustif:hora});
     // Limpiar caché del padre para que vea el cambio
     Object.keys(sessionStorage).filter(k=>k.startsWith('padre_')).forEach(k=>sessionStorage.removeItem(k));
     document.getElementById('modalLlegadaJustif').classList.remove('open');
@@ -2161,8 +2161,9 @@ async function renderHijosInfo(hijos) {
     const horaReg=tardSet.get(h.id)||'';
     const justifHoy=justifs.find(j=>j.estudianteId===h.id&&j.fecha===fecha);
     let estadoHtml='',botones='';
+    const asistHoy=asistSemana.find(a=>a.estudianteId===h.id&&a.fecha===fecha);
     if(pres){
-      estadoHtml='<span class="badge badge-green" style="font-size:12px;padding:5px 14px;">✅ ASISTIÓ hoy</span>';
+      estadoHtml='<span class="badge badge-green" style="font-size:12px;padding:5px 14px;">✅ ASISTIÓ hoy</span>'+(asistHoy?.justificadoPor?'<div style="font-size:11px;color:#777;margin-top:6px;text-align:center;">📋 Asistió — registrado manualmente (no presentó QR)</div>':'');
     }else if(tardeReg){
       estadoHtml=`<div style="background:#fef9ec;border:2px solid #e67e22;border-radius:10px;padding:12px;text-align:center;"><div style="font-size:1.6em;margin-bottom:4px;">⏰</div><div style="font-weight:700;color:#784212;font-size:14px;">LLEGÓ TARDE</div>${horaReg?`<div style="font-size:11px;color:#784212;margin-top:3px;">Registrado a las ${horaReg}</div>`:''}</div>`;
     }else if(justifReg){
