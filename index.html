@@ -2771,8 +2771,8 @@ async function rCargarDatos() {
   if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
   const estIds = new Set(estudiantes.map(e=>e.id));
   const filtro = a => { const d=rParseDate(a.fecha); return d && d>=fiDate && d<=ffDate && estIds.has(a.estudianteId); };
-  const asistencias = (await fsGetAll('asistencia')).filter(filtro);
-  const justifs     = (await fsGetAll('justificaciones')).filter(a=>{ const d=rParseDate(a.fecha); return d&&d>=fiDate&&d<=ffDate; });
+  const asistencias = (await fsQuery('asistencia', FB.where('fecha','>=',fiPE), FB.where('fecha','<=',ffPE))).filter(filtro);
+  const justifs     = (await fsQuery('justificaciones', FB.where('fecha','>=',fiPE), FB.where('fecha','<=',ffPE))).filter(a=>{ const d=rParseDate(a.fecha); return d&&d>=fiDate&&d<=ffDate; });
   return { estudiantes, asistencias, justifs, fi, ff };
 }
 
