@@ -2112,7 +2112,7 @@ async function renderHijosInfo(hijos) {
         const rFiltrado=r.filter(a=>ultimas2Semanas.includes(a.fecha));
         asistSemana.push(...rFiltrado);
         const hoy_reg=rFiltrado.find(a=>a.fecha===fecha);
-        if(hoy_reg){ if(hoy_reg.estado==='ausente') ausenteSet.add(h.id); else if(hoy_reg.estado==='tardanza') tardSet.set(h.id,hoy_reg.hora||''); else presSet.add(h.id); }
+        if(hoy_reg){ if(hoy_reg.estado==='ausente') ausenteSet.add(h.id); else if(hoy_reg.estado==='tardanza') tardSet.set(h.id,hoy_reg.hora||''); else if(hoy_reg.estado!=='justificado') presSet.add(h.id); }
       } catch(e2){}
     }
     for(const h of hijos) {
@@ -2457,7 +2457,7 @@ async function enviarJustificacion() {
   const hijos=await fsQuery('estudiantes',FB.where('dniPadre','==',e?.dniPadre||''));
   // Limpiar cache del padre para que vea el nuevo estado de la justificacion
   const fechaHoy=getFecha();
-  const ck='padre_'+hijos.map(h=>h.id).join('_')+'_'+fechaHoy;
+  const ck='padre_'+hijos.map(h=>h.id).join('_')+'_semana_'+fechaHoy;
   sessionStorage.removeItem(ck);
   renderHijosInfo(hijos);
 }
