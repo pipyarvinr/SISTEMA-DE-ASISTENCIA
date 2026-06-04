@@ -1296,6 +1296,7 @@ let _reporteEstudiantes = [];
 let _reporteAsistencias = [];
 let _reporteJustifs = [];
 let _justificacionesCache = [];
+let _padreUnsubscribes = []; // listeners tiempo real asistencia padre
 
 let _ignorarAuthChange = false;
 
@@ -1549,6 +1550,8 @@ function irPanel(panel) {
   if (panel==='incidencias') { incCargarPanel(); }
   if (panel==='permisos') { permCargarPanel(); }
   if (panel==='envivo') { evIniciar(); }
+  // Cancelar listener del padre si salimos de ese panel
+  if (panel!=='padre' && _padreUnsubscribes.length) { _padreUnsubscribes.forEach(fn=>fn()); _padreUnsubscribes=[]; }
 }
 
 function iniciarSesion() {
@@ -2093,18 +2096,26 @@ async function renderHijosInfo(hijos) {
   }
   const cacheKey = 'padre_' + hijos.map(h=>h.id).join('_') + '_semana_' + fecha;
   const cached = sessionStorage.getItem(cacheKey);
+  const CACHE_TTL_HOY = 5 * 60 * 1000; // 5 minutos para datos de hoy
   let presSet=new Set(), ausenteSet=new Set(), tardSet=new Map(), justifs=[], asistSemana=[];
+  let cacheValido = false;
   if (cached) {
     try {
       const parsed = JSON.parse(cached);
-      presSet   = new Set(parsed.pres);
-      ausenteSet= new Set(parsed.aus);
-      tardSet   = new Map(parsed.tard);
-      justifs   = parsed.justifs;
-      asistSemana = parsed.asistSemana||[];
+      const edad = Date.now() - (parsed.ts || 0);
+      cacheValido = edad < CACHE_TTL_HOY;
+      if (cacheValido) {
+        presSet   = new Set(parsed.pres);
+        ausenteSet= new Set(parsed.aus);
+        tardSet   = new Map(parsed.tard);
+        justifs   = parsed.justifs;
+        asistSemana = parsed.asistSemana||[];
+      } else {
+        sessionStorage.removeItem(cacheKey);
+      }
     } catch(_) { sessionStorage.removeItem(cacheKey); }
   }
-  if (!cached) {
+  if (!cacheValido) {
     for(const h of hijos) {
       try {
         // Una sola consulta por hijo trae las últimas 2 semanas
@@ -2121,7 +2132,8 @@ async function renderHijosInfo(hijos) {
     try {
       sessionStorage.setItem(cacheKey, JSON.stringify({
         pres: [...presSet], aus: [...ausenteSet],
-        tard: [...tardSet.entries()], justifs, asistSemana
+        tard: [...tardSet.entries()], justifs, asistSemana,
+        ts: Date.now()
       }));
     } catch(_) {}
   }
@@ -2373,6 +2385,25 @@ async function renderHijosInfo(hijos) {
       ${incHtml}
     </div>`;
   }).join('');
+  // Listener tiempo real: solo asistencia de hoy por cada hijo
+  _padreUnsubscribes.forEach(fn=>fn()); _padreUnsubscribes=[];
+  for(const h of hijos){
+    try{
+      const q=FB.query(FB.collection(FB.db,'asistencia'),FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha));
+      const unsub=FB.onSnapshot(q,snap=>{
+        snap.docChanges().forEach(change=>{
+          if(change.type==='modified'||change.type==='added'){
+            const d=change.doc.data();
+            // Invalidar cache y re-renderizar solo si cambió el estado de hoy
+            const ck='padre_'+hijos.map(x=>x.id).join('_')+'_semana_'+fecha;
+            sessionStorage.removeItem(ck);
+            renderHijosInfo(hijos);
+          }
+        });
+      });
+      _padreUnsubscribes.push(unsub);
+    }catch(e2){}
+  }
 }
 
 async function descargarBoletaPadre(justifId) {
