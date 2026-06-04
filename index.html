@@ -2390,11 +2390,12 @@ async function renderHijosInfo(hijos) {
   for(const h of hijos){
     try{
       const q=FB.query(FB.collection(FB.db,'asistencia'),FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha));
+      let cargaInicial=true;
       const unsub=FB.onSnapshot(q,snap=>{
+        if(cargaInicial){ cargaInicial=false; return; } // ignorar disparo inicial
         snap.docChanges().forEach(change=>{
-          if(change.type==='modified'||change.type==='added'){
-            const d=change.doc.data();
-            // Invalidar cache y re-renderizar solo si cambió el estado de hoy
+          if(change.type==='modified'){
+            // Solo reaccionar a cambios reales de estado (ej: ausente→puntual por justificación)
             const ck='padre_'+hijos.map(x=>x.id).join('_')+'_semana_'+fecha;
             sessionStorage.removeItem(ck);
             renderHijosInfo(hijos);
