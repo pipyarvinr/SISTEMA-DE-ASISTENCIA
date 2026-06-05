@@ -2804,16 +2804,14 @@ async function rCargarDatos() {
   if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
   const estIds = new Set(estudiantes.map(e=>e.id));
   const filtro = a => { const d=rParseDate(a.fecha); return d && d>=fiDate && d<=ffDate && estIds.has(a.estudianteId); };
-  const asistencias = (await fsQuery('asistencia', FB.where('fecha','>=',fiPE), FB.where('fecha','<=',ffPE))).filter(filtro);
-  const justifs     = (await fsQuery('justificaciones', FB.where('fecha','>=',fiPE), FB.where('fecha','<=',ffPE))).filter(a=>{ const d=rParseDate(a.fecha); return d&&d>=fiDate&&d<=ffDate; });
+  const asistencias = (await fsGetAll('asistencia')).filter(filtro);
+  const justifs     = (await fsGetAll('justificaciones')).filter(a=>{ const d=rParseDate(a.fecha); return d&&d>=fiDate&&d<=ffDate&&estIds.has(a.estudianteId); });
   return { estudiantes, asistencias, justifs, fi, ff };
 }
 
 async function exportarExcel() {
-  const fi=document.getElementById('rFechaInicio')?.value;
-  const ff=document.getElementById('rFechaFin')?.value;
-  if(!fi||!ff){notif('⚠️ Selecciona un rango de fechas antes de exportar','warning');return;}
-  const {estudiantes,asistencias,justifs} = await rCargarDatos();
+  if(!_reporteAsistencias.length){notif('⚠️ Primero genera el reporte con 🔍 Buscar','warning');return;}
+  const estudiantes=_reporteEstudiantes, asistencias=_reporteAsistencias, justifs=_reporteJustifs;
   const gradoOrden=['1ro','2do','3ro','4to','5to'], secOrden=['A','B','C','D','E'];
   const fmtCorta=f=>{const p=f.split('/');return p.length>=2?p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0'):f;};
   const sortFechas=arr=>[...arr].sort((a,b)=>{const pa=a.split('/'),pb=b.split('/');return new Date(+pa[2],+pa[1]-1,+pa[0])-new Date(+pb[2],+pb[1]-1,+pb[0]);});
@@ -2830,13 +2828,8 @@ async function exportarExcel() {
 }
 
 async function exportarPDF() {
-  const fi=document.getElementById('rFechaInicio')?.value;
-  const ff=document.getElementById('rFechaFin')?.value;
-  if(!fi||!ff){notif('⚠️ Selecciona un rango de fechas antes de exportar','warning');return;}
-  const dias=(new Date(ff)-new Date(fi))/(1000*60*60*24);
-  if(dias<0){notif('❌ La fecha de inicio no puede ser mayor a la fecha fin','error');return;}
-  if(dias>90){notif('⚠️ El PDF no puede superar 90 días','warning');return;}
-  const {estudiantes,asistencias,justifs} = await rCargarDatos();
+  if(!_reporteAsistencias.length){notif('⚠️ Primero genera el reporte con 🔍 Buscar','warning');return;}
+  const estudiantes=_reporteEstudiantes, asistencias=_reporteAsistencias, justifs=_reporteJustifs;
   const gradoOrden=['1ro','2do','3ro','4to','5to'], secOrden=['A','B','C','D','E'];
   const fmtCorta=f=>{const p=f.split('/');return p.length>=2?p[0].padStart(2,'0')+'/'+p[1].padStart(2,'0'):f;};
   const sortFechas=arr=>[...arr].sort((a,b)=>{const pa=a.split('/'),pb=b.split('/');return new Date(+pa[2],+pa[1]-1,+pa[0])-new Date(+pb[2],+pb[1]-1,+pb[0]);});
