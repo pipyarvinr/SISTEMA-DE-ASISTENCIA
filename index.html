@@ -1881,14 +1881,21 @@ async function registrarAsistencia(qrData) {
       estudianteId = trimmed; // nuevo formato: solo el id
     }
     if (!nombre) {
-      const est = await fsGet('estudiantes', estudianteId);
+      // Usar cache en memoria — evita leer Firestore por cada escaneo
+      let est = _estudiantesCache.find(e => e.id === estudianteId);
+      if (!est) {
+        // Cache vacío — cargar una sola vez y guardar
+        if (!_estudiantesCache.length) _estudiantesCache = await fsGetAll('estudiantes');
+        est = _estudiantesCache.find(e => e.id === estudianteId);
+      }
       if (!est) { notif('❌ Estudiante no encontrado','error'); return false; }
       nombre=est.nombre; grado=est.grado; seccion=est.seccion;
     }
     if (sesion?.grados?.length && !sesion.grados.includes(grado)) { notif('❌ No tienes permiso sobre ese grado','error'); return false; }
     const fecha = getFecha();
-    const existente = await fsQuery('asistencia', FB.where('estudianteId','==',estudianteId), FB.where('fecha','==',fecha));
-    if (existente.length) { notif(`⚠️ ${nombre} ya fue registrado hoy`,'warning'); return false; }
+    // Verificar duplicado en cache antes de ir a Firestore
+    const yaRegistrado = _asistenciaHoyCache?.find(a => a.estudianteId===estudianteId && a.fecha===fecha);
+    if (yaRegistrado) { notif(`⚠️ ${nombre} ya fue registrado hoy`,'warning'); return false; }
     const ahora = new Date();
     const hora = ahora.toLocaleTimeString('es-PE');
     const hh = ahora.getHours(), mm = ahora.getMinutes();
@@ -1898,10 +1905,12 @@ async function registrarAsistencia(qrData) {
     if (totalMin >= 770 && totalMin <= 785) estado = 'puntual';       // 12:50-13:05
     else if (totalMin >= 786 && totalMin <= 810) estado = 'tardanza';  // 13:06-14:00
     else estado = 'tardanza';                                           // fuera de rango = tardanza (nunca ausente por QR)
-    await fsAdd('asistencia',{ estudianteId, nombre, grado, seccion, fecha, hora, estado, registradoPor: sesion?.uid||'padre' });
+    const nuevoReg = { estudianteId, nombre, grado, seccion, fecha, hora, estado, registradoPor: sesion?.uid||'padre' };
+    await fsAdd('asistencia', nuevoReg);
+    // Actualizar cache local para que el siguiente escaneo sea instantáneo
+    if (_asistenciaHoyCache) _asistenciaHoyCache.push(nuevoReg); else _asistenciaHoyCache = [nuevoReg];
     const estadoLabel = estado==='puntual'?'✅ Puntual':estado==='tardanza'?'⏰ Tardanza':'❌ Ausente';
     notif(`${estadoLabel} — ${nombre} — ${grado} "${seccion}" — ${hora}`,'success');
-    _asistenciaHoyCache = null; // forzar recarga de stats con dato fresco
     renderListaAsistencia(); cargarTablaAsistencia(); actualizarStats();
     return true;
   } catch(err) {
