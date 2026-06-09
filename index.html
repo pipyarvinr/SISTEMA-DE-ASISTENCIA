@@ -1091,6 +1091,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
         <select id="uRol" onchange="toggleAsignacion()">
           <option value="auxiliar">🛡️ Auxiliar</option>
           <option value="tutor">📖 Tutor</option>
+          <option value="profesor">🧑‍🏫 Profesor</option>
           <option value="admin">👑 Administrador</option>
         </select>
       </div>
@@ -1488,16 +1489,20 @@ function entrarApp() {
     ['nav_admin','nav_padre','nav_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     ['mn_admin','mn_padre','mn_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     document.getElementById('timerBanner').style.display = '';
+  } else if (sesion.rol === 'profesor') {
+    ['nav_admin','nav_padre','nav_asistencia','nav_justificaciones','nav_reportes','nav_incidencias','nav_permisos','nav_envivo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['mn_admin','mn_padre','mn_asistencia','mn_justificaciones','mn_reportes','mn_incidencias','mn_permisos','mn_envivo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
   } else if (sesion.rol === 'admin') {
     ['nav_padre','nav_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     ['mn_padre','mn_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
   }
-  const hints = { admin:'<strong>👑 Administrador</strong>Gestión completa del sistema.', auxiliar:'<strong>🛡️ Auxiliar</strong>Registra asistencia y justificaciones.', tutor:'<strong>📖 Tutor</strong>Revisa tu aula y aprueba justificaciones.', padre:'<strong>👪 Apoderado</strong>Consulta la asistencia de tu hijo.' };
+  const hints = { admin:'<strong>👑 Administrador</strong>Gestión completa del sistema.', auxiliar:'<strong>🛡️ Auxiliar</strong>Registra asistencia y justificaciones.', tutor:'<strong>📖 Tutor</strong>Revisa tu aula y aprueba justificaciones.', padre:'<strong>👪 Apoderado</strong>Consulta la asistencia de tu hijo.', profesor:'<strong>🧑‍🏫 Profesor</strong>Gestiona el refuerzo escolar.' };
   document.getElementById('userHint').innerHTML = hints[sesion.rol] || '';
   actualizarFecha();
   if (sesion.rol !== 'padre') { actualizarStats(); renderAlertasBadge(); }
   if (sesion.rol === 'admin') irPanel('admin');
   else if (sesion.rol === 'padre') irPanel('padre');
+  else if (sesion.rol === 'profesor') irPanel('refuerzo');
   else irPanel('asistencia');
 }
 
@@ -2973,8 +2978,8 @@ function reporteIndividual(estudianteId) {
 async function renderListaUsuarios() {
   const usuarios=await fsGetAll('usuarios');
   const c=document.getElementById('listaUsuarios'); if(!c) return;
-  const rolTag={admin:'role-tag-admin',auxiliar:'role-tag-auxiliar',tutor:'role-tag-tutor'};
-  const rolLabel={admin:'👑 Admin',auxiliar:'🛡️ Auxiliar',tutor:'📖 Tutor'};
+  const rolTag={admin:'role-tag-admin',auxiliar:'role-tag-auxiliar',tutor:'role-tag-tutor',profesor:'role-tag-tutor'};
+  const rolLabel={admin:'👑 Admin',auxiliar:'🛡️ Auxiliar',tutor:'📖 Tutor',profesor:'🧑‍🏫 Profesor'};
   c.innerHTML=usuarios.map(u=>`
     <div class="user-row">
       <div><div class="user-row-name">${u.nombre}</div><div class="user-row-sub">${u.email} · <span class="role-tag ${rolTag[u.rol]||''}">${rolLabel[u.rol]||u.rol}</span></div></div>
@@ -2983,7 +2988,8 @@ async function renderListaUsuarios() {
 }
 
 function toggleAsignacion() {
-  document.getElementById('asignacionDiv').style.display=document.getElementById('uRol').value==='admin'?'none':'';
+  const rol=document.getElementById('uRol').value;
+  document.getElementById('asignacionDiv').style.display=(rol==='admin'||rol==='profesor')?'none':'';
 }
 function abrirModalUsuario() {
   editandoUsuarioId=null;
@@ -3322,10 +3328,41 @@ function init() {
 let _rfSesiones = [];
 
 async function rfCargarPanel() {
-  // Cargar estudiantes de las secciones del tutor
+  // Cargar todos los estudiantes
   let lista = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
-  if (sesion?.secciones?.length) lista = lista.filter(e => sesion.secciones.includes(e.seccion));
-  if (sesion?.grados?.length) lista = lista.filter(e => sesion.grados.includes(e.grado));
+  if (!_estudiantesCache.length) _estudiantesCache = lista;
+  const esProfesor = sesion?.rol === 'profesor';
+  const esTutor = sesion?.rol === 'tutor';
+  // Tutor: filtrar por su grado/sección asignado
+  if (esTutor) {
+    if (sesion?.secciones?.length) lista = lista.filter(e => sesion.secciones.includes(e.seccion));
+    if (sesion?.grados?.length) lista = lista.filter(e => sesion.grados.includes(e.grado));
+  }
+  // Profesor: mostrar filtros y aplicar selección
+  if (esProfesor) {
+    const gf = document.getElementById('rfFiltroGrado')?.value;
+    const sf = document.getElementById('rfFiltroSeccion')?.value;
+    if (gf) lista = lista.filter(e => e.grado === gf);
+    if (sf) lista = lista.filter(e => e.seccion === sf);
+    // Mostrar panel de filtros
+    let filtrosDiv = document.getElementById('rfFiltrosProfesor');
+    if (!filtrosDiv) {
+      filtrosDiv = document.createElement('div');
+      filtrosDiv.id = 'rfFiltrosProfesor';
+      filtrosDiv.style.cssText = 'display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;';
+      filtrosDiv.innerHTML = `
+        <select id="rfFiltroGrado" onchange="rfCargarPanel()" style="flex:1;padding:8px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;">
+          <option value="">Todos los grados</option>
+          <option value="1ro">1ro</option><option value="2do">2do</option><option value="3ro">3ro</option><option value="4to">4to</option><option value="5to">5to</option>
+        </select>
+        <select id="rfFiltroSeccion" onchange="rfCargarPanel()" style="flex:1;padding:8px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;">
+          <option value="">Todas las secciones</option>
+          <option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option><option value="E">E</option>
+        </select>`;
+      const cont2 = document.getElementById('rfEstudiantesLista');
+      if (cont2) cont2.parentNode.insertBefore(filtrosDiv, cont2);
+    }
+  }
   const cont = document.getElementById('rfEstudiantesLista');
   if (!cont) return;
   // Cargar horario existente si hay uno publicado
