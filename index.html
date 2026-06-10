@@ -671,9 +671,21 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:10px;align-items:end;margin-bottom:14px;">
             <div>
               <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Día</div>
-              <select id="rfDia" style="width:100%;padding:8px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--gris-bg);color:var(--texto);">
-                <option value="Lunes">Lunes</option><option value="Martes">Martes</option><option value="Miércoles">Miércoles</option><option value="Jueves">Jueves</option><option value="Viernes">Viernes</option>
-              </select>
+              <input type="date" id="rfDia" id="rfDia" style="width:100%;padding:8px 10px;border:1.5px solid var(--borde);border-radius:8px;font-size:13px;font-family:inherit;background:var(--gris-bg);color:var(--texto);">
+              <script>
+                (function(){ const d=new Date(); const pad=n=>String(n).padStart(2,'0');
+                  // Mínimo: lunes de la semana siguiente
+                  const lunes=new Date(d);
+                  const diasHastaLunes = d.getDay()===0 ? 1 : 8-d.getDay();
+                  lunes.setDate(d.getDate()+diasHastaLunes);
+                  const minStr=lunes.getFullYear()+'-'+pad(lunes.getMonth()+1)+'-'+pad(lunes.getDate());
+                  // Máximo: viernes de la semana siguiente + 1 semana más (14 días desde lunes)
+                  const max=new Date(lunes); max.setDate(lunes.getDate()+13);
+                  const maxStr=max.getFullYear()+'-'+pad(max.getMonth()+1)+'-'+pad(max.getDate());
+                  const el=document.getElementById('rfDia');
+                  if(el){el.min=minStr;el.max=maxStr;el.value=minStr;}
+                })();
+              </script>
             </div>
             <div>
               <div style="font-size:11px;font-weight:600;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">Hora</div>
@@ -1484,7 +1496,7 @@ function entrarApp() {
   } else if (sesion.rol === 'tutor') {
     ['nav_admin','nav_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     ['mn_admin','mn_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
-    document.getElementById('timerBanner').style.display = '';
+    document.getElementById('timerBanner').style.display = 'none';
   } else if (sesion.rol === 'auxiliar') {
     ['nav_admin','nav_padre','nav_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     ['mn_admin','mn_padre','mn_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
@@ -1492,9 +1504,10 @@ function entrarApp() {
   } else if (sesion.rol === 'profesor') {
     ['nav_admin','nav_padre','nav_asistencia','nav_justificaciones','nav_reportes','nav_incidencias','nav_permisos','nav_envivo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
     ['mn_admin','mn_padre','mn_asistencia','mn_justificaciones','mn_reportes','mn_incidencias','mn_permisos','mn_envivo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    document.getElementById('timerBanner').style.display = 'none';
   } else if (sesion.rol === 'admin') {
-    ['nav_padre','nav_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
-    ['mn_padre','mn_refuerzo'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['nav_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
+    ['mn_padre'].forEach(n => { const el=document.getElementById(n); if(el) el.style.display='none'; });
   }
   const hints = { admin:'<strong>👑 Administrador</strong>Gestión completa del sistema.', auxiliar:'<strong>🛡️ Auxiliar</strong>Registra asistencia y justificaciones.', tutor:'<strong>📖 Tutor</strong>Revisa tu aula y aprueba justificaciones.', padre:'<strong>👪 Apoderado</strong>Consulta la asistencia de tu hijo.', profesor:'<strong>🧑‍🏫 Profesor</strong>Gestiona el refuerzo escolar.' };
   document.getElementById('userHint').innerHTML = hints[sesion.rol] || '';
@@ -1599,6 +1612,7 @@ function finalizarSesion() {
   actualizarStats(); notif('✅ Sesión finalizada','info');
 }
 async function finalizarYMarcarAusentes() {
+  if (sesion?.rol !== 'admin' && sesion?.rol !== 'auxiliar') { notif('❌ Solo el admin o auxiliar puede marcar ausentes','error'); return; }
   if (!confirm('⚠️ ¿Seguro que deseas finalizar la sesión y marcar como ausentes a todos los estudiantes sin registro? Esta acción no se puede deshacer.')) return;
   finalizarSesion();
   notif('⏳ Marcando ausentes…','info');
@@ -1670,8 +1684,8 @@ async function renderEstudiantes() {
   const c = document.getElementById('listaEstudiantes');
   if (!c) return;
   c.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:20px;color:var(--texto-suave);">⏳ Cargando…</div>';
-  let lista = await fsGetAll('estudiantes');
-  _estudiantesCache = lista;
+  let lista = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
+  if (!_estudiantesCache.length) _estudiantesCache = lista;
   const gf = document.getElementById('fGradoAdmin')?.value;
   const sf = document.getElementById('fSecAdmin')?.value;
   if (gf) lista = lista.filter(e=>e.grado===gf);
@@ -1931,8 +1945,8 @@ async function renderListaAsistencia() {
     c.innerHTML='<div style="padding:24px;text-align:center;color:var(--texto-suave);grid-column:1/-1;">⚠️ No tienes grados ni secciones asignados.<br>Pide al Administrador que configure tu cuenta.</div>';
     return;
   }
-  let lista = await fsGetAll('estudiantes');
-  _estudiantesCache = lista;
+  let lista = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
+  if (!_estudiantesCache.length) _estudiantesCache = lista;
   const gf = document.getElementById('fGradoAux')?.value;
   const sf = document.getElementById('fSecAux')?.value;
   if (sesion?.grados?.length) lista = lista.filter(e=>sesion.grados.includes(e.grado));
@@ -2352,13 +2366,16 @@ async function renderHijosInfo(hijos) {
     const rfDoc = refuerzosMap[h.id];
     let refuerzoHtml = '';
     if (rfDoc) {
-      const dias = ['Lunes','Martes','Miércoles','Jueves','Viernes'];
-      const colsRf = dias.map(dia => {
-        const ses = (rfDoc.sesiones||[]).filter(s=>s.dia===dia);
-        const [bg,col] = rfDoc.sesiones&&ses.length ? (()=>{const k=Object.keys(_rfColores||{}).find(k=>ses[0].materia.toLowerCase().includes(k.toLowerCase()))||'default';return (({'Matemática':'#E6F1FB,#185FA5','Comunicación':'#FAEEDA,#854F0B','Ciencias':'#EAF3DE,#3B6D11','Historia':'#FBEAF0,#993556','Inglés':'#EEEDFE,#3C3489','default':'#F1EFE8,#444441'})[k]||'#F1EFE8,#444441').split(',')})() : ['#f5f5f5','#ccc'];
-        return `<div style="flex:1;min-width:0;">
-          <div style="font-size:9px;font-weight:700;color:#999;text-transform:uppercase;text-align:center;padding-bottom:4px;border-bottom:0.5px solid #eee;margin-bottom:5px;">${dia.substring(0,3)}</div>
-          ${ses.length ? ses.map(s=>`<div style="background:${bg};border-left:2px solid ${col};border-radius:6px;padding:5px 6px;"><div style="font-size:9px;color:${col};font-weight:700;">${s.hora}</div><div style="font-size:10px;font-weight:700;color:#333;">${s.materia}</div></div>`).join('') : `<div style="text-align:center;color:#ddd;font-size:14px;padding:4px;">—</div>`}
+      // Ordenar sesiones por fecha para la vista del padre
+      const sesRfOrdenadas = [...(rfDoc.sesiones||[])].sort((a,b)=>(a.fecha||'')>(b.fecha||'')?1:-1);
+      const colsRf = sesRfOrdenadas.map(s => {
+        const rfColors = {'Matemática':'#E6F1FB,#185FA5','Comunicación':'#FAEEDA,#854F0B','Ciencias':'#EAF3DE,#3B6D11','Historia':'#FBEAF0,#993556','Inglés':'#EEEDFE,#3C3489','default':'#F1EFE8,#444441'};
+        const k = Object.keys(rfColors).find(k=>s.materia?.toLowerCase().includes(k.toLowerCase()))||'default';
+        const [bg,col] = rfColors[k].split(',');
+        return `<div style="background:${bg};border-left:2px solid ${col};border-radius:6px;padding:6px 8px;display:flex;align-items:center;gap:8px;">
+          <div style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:99px;background:${col};color:#fff;white-space:nowrap;">${s.dia} ${s.fechaDisplay||''}</div>
+          <div style="font-size:9px;color:${col};font-weight:700;">${s.hora}</div>
+          <div style="font-size:10px;font-weight:700;color:#333;flex:1;">${s.materia}</div>
         </div>`;
       }).join('');
       refuerzoHtml = `
@@ -2370,7 +2387,7 @@ async function renderHijosInfo(hijos) {
           </div>
           <div style="font-size:26px;">⚠️</div>
         </div>
-        <div style="display:flex;gap:5px;margin-bottom:8px;">${colsRf}</div>
+        <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px;">${colsRf}</div>
         ${rfDoc.mensaje?`<div style="background:#fff8e1;border-left:3px solid #f39c12;border-radius:0 8px 8px 0;padding:8px 10px;font-size:12px;color:#784212;font-weight:500;">📢 ${rfDoc.mensaje}</div>`:''}
       <div style="margin-top:10px;">
           <div style="font-size:10px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">📋 Historial de asistencia al refuerzo</div>
@@ -2558,7 +2575,8 @@ async function eliminarJustificacionesFiltradas() {
 }
 
 async function renderJustificaciones() {
-  let justifs=await fsGetAll('justificaciones');
+  let justifs=_justificacionesCache?.length?_justificacionesCache:await fsGetAll('justificaciones');
+  if(!_justificacionesCache?.length) _justificacionesCache=justifs;
   _justificacionesCache=justifs;
   const fEstado=document.getElementById('fJustifEstado')?.value;
   const fGrado=document.getElementById('fJustifGrado')?.value;
@@ -2617,7 +2635,8 @@ function verEvidencia(src) {
 }
 
 async function renderAlertas() {
-  const justifs=await fsGetAll('justificaciones');
+  const justifs=_justificacionesCache?.length?_justificacionesCache:await fsGetAll('justificaciones');
+  if(!_justificacionesCache?.length) _justificacionesCache=[...justifs];
   const alertas=justifs.filter(j=>j.estado==='alerta');
   const c=document.getElementById('alertasContainer');
   if(!c) return;
@@ -2694,27 +2713,41 @@ async function generarReporte() {
   const grado   = document.getElementById('rGrado')?.value;
   const seccion = document.getElementById('rSeccion')?.value;
 
-  // ── Lecturas optimizadas: solo el rango de fechas ──
-  let estudiantes = await fsGetAll('estudiantes');
+  // ── Lecturas optimizadas: usa cache y filtra por grado/sección ──
+  let estudiantes = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
+  if (!_estudiantesCache.length) _estudiantesCache = estudiantes;
   if(sesion?.grados?.length)    estudiantes = estudiantes.filter(e=>sesion.grados.includes(e.grado));
   if(sesion?.secciones?.length) estudiantes = estudiantes.filter(e=>sesion.secciones.includes(e.seccion));
   if(grado)   estudiantes = estudiantes.filter(e=>e.grado===grado);
   if(seccion) estudiantes = estudiantes.filter(e=>e.seccion===seccion);
 
   const estIds = new Set(estudiantes.map(e=>e.id));
-
-  // Solo lee asistencia del rango — no todo el historial
   const fiDate = rParseDate(fiPE), ffDate = rParseDate(ffPE);
-  const asistFilt = (await fsGetAll('asistencia')).filter(a=>{
-    if(!estIds.has(a.estudianteId)) return false;
-    const d = rParseDate(a.fecha); if(!d) return false;
-    return d >= fiDate && d <= ffDate;
-  });
 
-  // Solo lee justificaciones del rango
-  const justifs = (await fsGetAll('justificaciones')).filter(a=>{
-    const d = rParseDate(a.fecha); if(!d) return false;
-    return d >= fiDate && d <= ffDate;
+  // Leer asistencia solo de los estudiantes filtrados (no toda la colección)
+  let asistFilt = [];
+  if (estIds.size <= 40) {
+    // Pocos alumnos: query por cada estudiante en paralelo
+    const promesas = [...estIds].map(id => fsQuery('asistencia', FB.where('estudianteId','==',id)));
+    const resultados = await Promise.all(promesas);
+    asistFilt = resultados.flat().filter(a => {
+      const d = rParseDate(a.fecha); return d && d >= fiDate && d <= ffDate;
+    });
+  } else {
+    // Muchos alumnos: traer toda la asistencia y filtrar en memoria
+    const todaAsist = await fsGetAll('asistencia');
+    asistFilt = todaAsist.filter(a => {
+      if(!estIds.has(a.estudianteId)) return false;
+      const d = rParseDate(a.fecha); return d && d >= fiDate && d <= ffDate;
+    });
+  }
+
+  // Justificaciones: solo del rango usando cache
+  const todasJustifs = _justificacionesCache?.length ? _justificacionesCache : await fsGetAll('justificaciones');
+  if (!_justificacionesCache?.length) _justificacionesCache = todasJustifs;
+  const justifs = todasJustifs.filter(a => {
+    if (!estIds.has(a.estudianteId)) return false;
+    const d = rParseDate(a.fecha); return d && d >= fiDate && d <= ffDate;
   });
 
   // ── Tabla ──
@@ -3383,23 +3416,59 @@ async function rfCargarPanel() {
       rfRenderPreview(doc);
     }
   } catch(e) {}
+  // Cargar todos los refuerzos activos para detectar doble convocatoria
+  let convocadosPorFecha = {}; // { 'fecha': { estudianteId: tutorNombre } }
+  try {
+    const todosRf = await fsQuery('refuerzo');
+    todosRf.forEach(rf => {
+      if (rf.tutorUid === sesion.uid) return; // ignorar los propios
+      (rf.sesiones||[]).forEach(s => {
+        if (!s.fecha) return;
+        if (!convocadosPorFecha[s.fecha]) convocadosPorFecha[s.fecha] = {};
+        (rf.estudiantesIds||[]).forEach(id => {
+          convocadosPorFecha[s.fecha][id] = rf.tutorNombre || 'otro docente';
+        });
+      });
+    });
+  } catch(e2) {}
+  // Fechas programadas por este docente
+  const misFechas = (_rfSesiones||[]).map(s=>s.fecha).filter(Boolean);
   // Renderizar checkboxes de estudiantes
-  cont.innerHTML = lista.map(e => `
-    <label style="display:flex;align-items:center;gap:8px;background:var(--gris-bg);border:1px solid var(--borde);border-radius:8px;padding:8px 10px;cursor:pointer;font-size:12px;">
+  cont.innerHTML = lista.map(e => {
+    // Verificar si este alumno ya está convocado por otro docente en alguna de mis fechas
+    const fechaConflicto = misFechas.find(f => convocadosPorFecha[f]?.[e.id]);
+    const docConflicto = fechaConflicto ? convocadosPorFecha[fechaConflicto][e.id] : null;
+    if (docConflicto) {
+      return `<label style="display:flex;align-items:center;gap:8px;background:#fafafa;border:1px solid #ddd;border-radius:8px;padding:8px 10px;opacity:0.6;cursor:not-allowed;font-size:12px;">
+        <input type="checkbox" disabled style="width:15px;height:15px;cursor:not-allowed;">
+        <div style="flex:1;">
+          <div style="font-weight:600;color:var(--texto);">${e.nombre}</div>
+          <div style="color:var(--texto-suave);font-size:11px;">${e.grado} — Sección ${e.seccion}</div>
+        </div>
+        <div style="font-size:10px;color:#e8000d;font-weight:600;text-align:right;">🔒 Ya convocado<br>${docConflicto}</div>
+      </label>`;
+    }
+    return `<label style="display:flex;align-items:center;gap:8px;background:var(--gris-bg);border:1px solid var(--borde);border-radius:8px;padding:8px 10px;cursor:pointer;font-size:12px;">
       <input type="checkbox" id="rfcb_${e.id}" value="${e.id}" style="width:15px;height:15px;accent-color:#e8000d;cursor:pointer;">
       <div>
         <div style="font-weight:600;color:var(--texto);">${e.nombre}</div>
         <div style="color:var(--texto-suave);font-size:11px;">${e.grado} — Sección ${e.seccion}</div>
       </div>
-    </label>`).join('');
+    </label>`;
+  }).join('');
 }
 
 function rfAgregarSesion() {
-  const dia = document.getElementById('rfDia').value;
+  const fechaVal = document.getElementById('rfDia').value;
   const hora = document.getElementById('rfHora').value;
   const materia = document.getElementById('rfMateria').value.trim();
+  if (!fechaVal) { notif('⚠️ Selecciona una fecha','warning'); return; }
   if (!materia) { notif('⚠️ Ingresa el nombre de la materia','warning'); return; }
-  _rfSesiones.push({ dia, hora, materia });
+  const d = new Date(fechaVal+'T00:00:00');
+  const diasNombre = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const dia = diasNombre[d.getDay()];
+  const fechaDisplay = d.toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'});
+  _rfSesiones.push({ dia, fecha: fechaVal, fechaDisplay, hora, materia });
   document.getElementById('rfMateria').value = '';
   rfRenderSesiones();
 }
@@ -3426,7 +3495,7 @@ function rfRenderSesiones() {
   cont.innerHTML = _rfSesiones.map((s, i) => {
     const [bg, col] = rfGetColor(s.materia);
     return `<div style="display:flex;align-items:center;gap:10px;background:${bg};border-radius:8px;padding:9px 12px;border-left:3px solid ${col};">
-      <div style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;background:${col};color:#fff;min-width:72px;text-align:center;">${s.dia}</div>
+      <div style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;background:${col};color:#fff;min-width:72px;text-align:center;">${s.dia}${s.fechaDisplay?' '+s.fechaDisplay:''}</div>
       <div style="font-size:12px;color:${col};font-weight:600;min-width:52px;">${s.hora}</div>
       <div style="font-size:13px;font-weight:600;color:var(--texto);flex:1;">${s.materia}</div>
       <button onclick="rfEliminarSesion(${i})" style="background:none;border:none;color:var(--texto-suave);font-size:18px;cursor:pointer;padding:0 4px;">×</button>
@@ -3441,9 +3510,11 @@ async function rfPublicar() {
   const estudiantesIds = [...checkboxes].map(cb => cb.value);
   const mensaje = document.getElementById('rfMensaje').value.trim();
   const hoy = new Date();
-  const viernesOffset = 5 - hoy.getDay();
-  const viernes = new Date(hoy);
-  viernes.setDate(hoy.getDate() + (viernesOffset >= 0 ? viernesOffset : 0));
+  // fechaExpira = la fecha más lejana entre las sesiones programadas
+  const fechasOrdenadas = _rfSesiones.filter(s=>s.fecha).map(s=>s.fecha).sort();
+  const ultimaFecha = fechasOrdenadas.length ? fechasOrdenadas[fechasOrdenadas.length-1] : null;
+  const expiraDate = ultimaFecha ? new Date(ultimaFecha+'T00:00:00') : hoy;
+  expiraDate.setDate(expiraDate.getDate() + 1); // +1 día para que el padre vea el último día completo
   const data = {
     tutorUid: sesion.uid,
     tutorNombre: sesion.nombre,
@@ -3453,7 +3524,7 @@ async function rfPublicar() {
     grados: sesion.grados || [],
     secciones: sesion.secciones || [],
     fechaPublicacion: hoy.toLocaleDateString('es-PE'),
-    fechaExpira: viernes.toLocaleDateString('es-PE')
+    fechaExpira: expiraDate.toLocaleDateString('es-PE')
   };
   try {
     const docs = await fsQuery('refuerzo', FB.where('tutorUid','==', sesion.uid));
@@ -3469,19 +3540,14 @@ function rfRenderPreview(data) {
   const cont = document.getElementById('rfPreviewContenido');
   if (!card || !cont) return;
   card.style.display = '';
-  const dias = ['Lunes','Martes','Miércoles','Jueves','Viernes'];
-  const colsHtml = dias.map(dia => {
-    const sesiones = (data.sesiones || []).filter(s => s.dia === dia);
-    const [bg, col] = rfGetColor(sesiones[0]?.materia || '');
-    const sesHtml = sesiones.length
-      ? sesiones.map(s => `<div style="background:${bg};border-left:3px solid ${col};border-radius:8px;padding:7px 8px;">
-          <div style="font-size:10px;color:${col};font-weight:600;">${s.hora}</div>
-          <div style="font-size:11px;font-weight:700;color:var(--texto);">${s.materia}</div>
-        </div>`).join('')
-      : `<div style="background:var(--gris-bg);border-radius:8px;padding:7px 8px;text-align:center;color:var(--texto-suave);font-size:18px;">—</div>`;
-    return `<div style="flex:1;min-width:0;">
-      <div style="font-size:9px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;text-align:center;padding-bottom:5px;border-bottom:0.5px solid var(--borde);margin-bottom:6px;">${dia.substring(0,3)}</div>
-      <div style="display:flex;flex-direction:column;gap:5px;">${sesHtml}</div>
+  // Ordenar sesiones por fecha
+  const sesionesOrdenadas = [...(data.sesiones||[])].sort((a,b)=>(a.fecha||'')>(b.fecha||'')?1:-1);
+  const colsHtml = sesionesOrdenadas.map(s => {
+    const [bg, col] = rfGetColor(s.materia || '');
+    return `<div style="background:${bg};border-left:3px solid ${col};border-radius:8px;padding:9px 12px;display:flex;align-items:center;gap:10px;">
+      <div style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;background:${col};color:#fff;white-space:nowrap;">${s.dia} ${s.fechaDisplay||''}</div>
+      <div style="font-size:12px;color:${col};font-weight:600;min-width:48px;">${s.hora}</div>
+      <div style="font-size:13px;font-weight:600;color:var(--texto);flex:1;">${s.materia}</div>
     </div>`;
   }).join('');
   cont.innerHTML = `
@@ -3489,14 +3555,14 @@ function rfRenderPreview(data) {
       <div>
         <div style="font-size:11px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px;">Publicado por</div>
         <div style="font-size:14px;font-weight:700;color:#fff;">${data.tutorNombre || 'Tutor'}</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">📅 ${data.fechaPublicacion || ''}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">📅 Publicado: ${data.fechaPublicacion || ''} · Expira: ${data.fechaExpira||''}</div>
       </div>
       <div style="text-align:right;">
         <div style="font-size:22px;font-weight:800;color:#e8000d;">${(data.estudiantesIds||[]).length}</div>
         <div style="font-size:10px;color:rgba(255,255,255,.4);">convocados</div>
       </div>
     </div>
-    <div style="display:flex;gap:6px;margin-bottom:12px;">${colsHtml}</div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">${colsHtml}</div>
     ${data.mensaje ? `<div style="background:var(--gris-bg);border-left:3px solid #e8000d;border-radius:0 8px 8px 0;padding:9px 12px;font-size:12px;color:var(--texto);">📢 ${data.mensaje}</div>` : ''}`;
 }
 
@@ -3525,15 +3591,20 @@ async function rfIniciarSesionHoy() {
       const marcado = yaSet.has(e.id);
       const regExist = yaReg.find(r=>r.estudianteId===e.id);
       const estadoActual = regExist?.estado || '';
-      return `<div style="display:flex;align-items:center;justify-content:space-between;background:var(--gris-bg);border:1.5px solid var(--borde);border-radius:10px;padding:9px 12px;" id="rfrow_${e.id}">
-        <div>
-          <div style="font-weight:700;font-size:13px;color:var(--texto);">${e.nombre}</div>
-          <div style="font-size:11px;color:var(--texto-suave);">${e.grado} 2014 Secci00f3n ${e.seccion}</div>
+      const obsActual = regExist?.observacion || '';
+      return `<div style="background:var(--gris-bg);border:1.5px solid var(--borde);border-radius:10px;padding:9px 12px;margin-bottom:4px;" id="rfrow_${e.id}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div>
+            <div style="font-weight:700;font-size:13px;color:var(--texto);">${e.nombre}</div>
+            <div style="font-size:11px;color:var(--texto-suave);">${e.grado} — Sección ${e.seccion}</div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button onclick="rfMarcar('${e.id}','presente')" style="padding:6px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:${estadoActual==='presente'?'#1a7a3a':'#e8f5e9'};color:${estadoActual==='presente'?'#fff':'#1a7a3a'};" id="rfbtn_p_${e.id}">✅ Presente</button>
+            <button onclick="rfMarcar('${e.id}','ausente')" style="padding:6px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:${estadoActual==='ausente'?'#e8000d':'#ffe8e8'};color:${estadoActual==='ausente'?'#fff':'#e8000d'};" id="rfbtn_a_${e.id}">❌ Ausente</button>
+          </div>
         </div>
-        <div style="display:flex;gap:6px;">
-          <button onclick="rfMarcar('${e.id}','presente')" style="padding:6px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:${estadoActual==='presente'?'#1a7a3a':'#e8f5e9'};color:${estadoActual==='presente'?'#fff':'#1a7a3a'};" id="rfbtn_p_${e.id}">2705 Presente</button>
-          <button onclick="rfMarcar('${e.id}','ausente')" style="padding:6px 12px;border:none;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;background:${estadoActual==='ausente'?'#e8000d':'#ffe8e8'};color:${estadoActual==='ausente'?'#fff':'#e8000d'};" id="rfbtn_a_${e.id}">274c Ausente</button>
-        </div>
+        <input type="text" id="rfobs_${e.id}" placeholder="Observación (opcional)..." value="${obsActual}"
+          style="width:100%;padding:5px 8px;border:1px solid var(--borde);border-radius:6px;font-size:11px;font-family:inherit;background:var(--fondo);color:var(--texto);box-sizing:border-box;">
       </div>`;
     }).join('');
     document.getElementById('rfListaAsistencia').style.display = '';
@@ -3559,8 +3630,10 @@ async function rfGuardarAsistencia() {
       const estado = _rfMarcados[estudianteId];
       const est = _rfConvocados.find(e=>e.id===estudianteId);
       const yaReg = await fsQuery('asistencia_refuerzo', FB.where('fecha','==',fecha), FB.where('estudianteId','==',estudianteId), FB.where('tutorUid','==',sesion.uid));
-      const data = { estudianteId, nombre: est?.nombre||'', grado: est?.grado||'', seccion: est?.seccion||'', fecha, horaInicio: _rfHoraInicioSesion, horaFin: _rfHoraFinSesion, estado, tutorUid: sesion.uid, tutorNombre: sesion.nombre||'', registradoPor: sesion.nombre||sesion.uid };
-      if (yaReg.length) await fsUpdate('asistencia_refuerzo', yaReg[0].id, { estado, horaInicio: _rfHoraInicioSesion, horaFin: _rfHoraFinSesion });
+      const obsEl = document.getElementById('rfobs_'+estudianteId);
+      const observacion = obsEl ? obsEl.value.trim() : '';
+      const data = { estudianteId, nombre: est?.nombre||'', grado: est?.grado||'', seccion: est?.seccion||'', fecha, horaInicio: _rfHoraInicioSesion, horaFin: _rfHoraFinSesion, estado, observacion, tutorUid: sesion.uid, tutorNombre: sesion.nombre||'', registradoPor: sesion.nombre||sesion.uid };
+      if (yaReg.length) await fsUpdate('asistencia_refuerzo', yaReg[0].id, { estado, observacion, horaInicio: _rfHoraInicioSesion, horaFin: _rfHoraFinSesion });
       else await fsAdd('asistencia_refuerzo', data);
     }
     notif('2705 Asistencia de refuerzo guardada','success');
