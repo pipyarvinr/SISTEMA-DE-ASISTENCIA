@@ -269,7 +269,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--gris-bg);min-height:100vh
 .student-card.justificado{background:#eaf4fb;border-color:var(--azul);}
 .student-name{font-size:12px;font-weight:700;color:var(--texto);margin-bottom:2px;}
 .student-grade{font-size:10px;color:var(--naranja);font-weight:700;margin-bottom:7px;}
-.qr-container{width:80px;height:80px;margin:6px auto;background:white;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.qr-container{width:120px;height:120px;margin:6px auto;background:white;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;overflow:visible;border:2px solid #e8000d;box-shadow:0 2px 8px rgba(0,0,0,0.1);}.qr-container canvas{display:block !important;}.qr-container img{display:block !important;}
 
 /* ── BADGES ── */
 .badge{display:inline-block;padding:3px 9px;border-radius:99px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-top:5px;}
@@ -1727,7 +1727,7 @@ function generarQR(id, estudiante) {
   try {
     new QRCode(el, {
       text: id,
-      width: 76, height: 76, correctLevel: QRCode.CorrectLevel.L
+      width: 110, height: 110, correctLevel: QRCode.CorrectLevel.L
     });
   } catch(e) { console.warn('QR error', id, e); }
 }
