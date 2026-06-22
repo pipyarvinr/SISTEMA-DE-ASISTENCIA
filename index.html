@@ -1933,15 +1933,18 @@ body{font-family:Arial,sans-serif;background:white;padding:10px;}
   const w=window.open('','_blank');
   if (!w) { notif('❌ Bloqueo de ventana emergente — permite pop-ups','error'); return; }
   w.document.write(html); w.document.close();
-  setTimeout(()=>{
-    const blob = new Blob([html], {type:'text/html'});
-    const a = w.document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'tarjetas_qr_' + (gf||'todos') + (sf||'') + '.html';
-    w.document.body.appendChild(a);
-    a.click();
-    setTimeout(()=>w.close(),500);
-  },400);
+  // Esperar a que todas las imágenes (logo + QRs en base64) terminen de cargar antes de imprimir
+  const esperarImagenes = () => {
+    const imgs = w.document.images;
+    const promesas = Array.from(imgs).map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise(resolve => { img.onload = resolve; img.onerror = resolve; });
+    });
+    return Promise.all(promesas);
+  };
+  esperarImagenes().then(() => {
+    setTimeout(() => { w.focus(); w.print(); }, 200);
+  });
   notif('✅ '+filtrada.length+' tarjetas QR listas para imprimir','success');
 }
 
