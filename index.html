@@ -946,9 +946,7 @@ tr.row-alerta{background:#ffe8e8;border-left:3px solid var(--rojo);}
                 <option value="C">C</option><option value="D">D</option><option value="E">E</option>
               </select>
             </div>
-            <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#2ecc71;font-weight:700;">
-              <span style="width:8px;height:8px;background:#2ecc71;border-radius:50%;display:inline-block;animation:pulse 1.5s infinite;"></span> En vivo
-            </div>
+            <button onclick="evRecargar()" style="background:var(--rojo);color:#fff;border:none;border-radius:8px;padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;" title="Actualizar datos">🔄 Actualizar</button>
           </div>
         </div>
 
@@ -1326,6 +1324,7 @@ let _reporteEstudiantes = [];
 let _reporteAsistencias = [];
 let _reporteJustifs = [];
 let _justificacionesCache = [];
+let _usuariosCache = [];
 let _padreUnsubscribes = []; // listeners tiempo real asistencia padre
 
 let _ignorarAuthChange = false;
@@ -1526,7 +1525,7 @@ async function cerrarSesion() {
   evDetener();
   detenerCamara();
   sesion = null;
-  _estudiantesCache = []; _asistenciaHoyCache = []; _justificacionesCache = [];
+  _estudiantesCache = []; _asistenciaHoyCache = []; _justificacionesCache = []; _usuariosCache = [];
   document.getElementById('appLayout').style.display = 'none';
   document.getElementById('timerBanner').style.display = '';
   try { await FB.signOut(FB.auth); } catch(e) {}
@@ -1605,6 +1604,8 @@ function iniciarSesion() {
     if (tiempoRestante <= 300) document.getElementById('timerStatus').classList.add('blink');
   }, 1000);
   notif('🟢 Sesión iniciada — 60 minutos activos','success');
+  // Pre-cargar caché en segundo plano para que el primer escaneo sea instantáneo
+  if (!_estudiantesCache.length) fsGetAll('estudiantes').then(lista => { _estudiantesCache = lista; });
   renderListaAsistencia();
 }
 function finalizarSesion() {
@@ -1630,7 +1631,8 @@ async function finalizarYMarcarAusentes() {
       if (sesion?.secciones?.length) todos = todos.filter(e=>sesion.secciones.includes(e.seccion));
     }
     const fecha = getFecha();
-    const asist = await fsQuery('asistencia', FB.where('fecha','==',fecha));
+    const asist = _asistenciaHoyCache?.length ? _asistenciaHoyCache : await fsQuery('asistencia', FB.where('fecha','==',fecha));
+    if (!_asistenciaHoyCache?.length) _asistenciaHoyCache = asist;
     const conRegistro = new Set(asist.map(a=>a.estudianteId));
     const sinRegistro = todos.filter(e=>!conRegistro.has(e.id));
     if(!sinRegistro.length){ notif('✅ Todos los estudiantes ya tienen registro hoy','success'); return; }
@@ -2000,7 +2002,7 @@ async function registrarAsistencia(qrData) {
     if (_asistenciaHoyCache) _asistenciaHoyCache.push(nuevoReg); else _asistenciaHoyCache = [nuevoReg];
     const estadoLabel = estado==='puntual'?'✅ Puntual':estado==='tardanza'?'⏰ Tardanza':'❌ Ausente';
     notif(`${estadoLabel} — ${nombre} — ${grado} "${seccion}" — ${hora}`,'success');
-    renderListaAsistencia(); cargarTablaAsistencia(); actualizarStats();
+    setTimeout(() => { renderListaAsistencia(); cargarTablaAsistencia(); actualizarStats(); }, 0);
     return true;
   } catch(err) {
     console.error(err); notif('❌ QR inválido o error de red','error'); return false;
@@ -2024,7 +2026,7 @@ async function renderListaAsistencia() {
   if (gf) lista = lista.filter(e=>e.grado===gf);
   if (sf) lista = lista.filter(e=>e.seccion===sf);
   const fecha = getFecha();
-  const asist = await fsQuery('asistencia', FB.where('fecha','==',fecha));
+  const asist = _asistenciaHoyCache?.length ? _asistenciaHoyCache : await fsQuery('asistencia', FB.where('fecha','==',fecha));
   _asistenciaHoyCache = asist;
   const presSet = new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
   const ausenteSet = new Set(asist.filter(a=>a.estado==='ausente').map(a=>a.estudianteId));
@@ -2067,7 +2069,8 @@ async function desmarcarAsistencia(estudianteId, nombre) {
 
 async function cargarTablaAsistencia() {
   const fecha = getFecha();
-  let asist = await fsQuery('asistencia', FB.where('fecha','==',fecha));
+  let asist = _asistenciaHoyCache?.length ? [..._asistenciaHoyCache] : await fsQuery('asistencia', FB.where('fecha','==',fecha));
+  if (!_asistenciaHoyCache?.length) _asistenciaHoyCache = asist;
   if (sesion?.rol === 'tutor' || sesion?.rol === 'auxiliar') {
     if (sesion?.grados?.length) asist = asist.filter(a => sesion.grados.includes(a.grado));
     if (sesion?.secciones?.length) asist = asist.filter(a => sesion.secciones.includes(a.seccion));
@@ -2135,7 +2138,8 @@ async function buscarPorNombre() {
   let lista = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
   lista = lista.filter(e=>e.nombre.toLowerCase().includes(q));
   const fecha=getFecha();
-  const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
+  const asist=_asistenciaHoyCache?.length?_asistenciaHoyCache:await fsQuery('asistencia',FB.where('fecha','==',fecha));
+  if(!_asistenciaHoyCache?.length) _asistenciaHoyCache=asist;
   const estadoMap={}; asist.forEach(a=>{estadoMap[a.estudianteId]=a.estado;});
   c.innerHTML=lista.slice(0,8).map(e=>{
     const est=estadoMap[e.id];
@@ -2157,7 +2161,8 @@ async function buscarPorDNI() {
   const hijos=await fsQuery('estudiantes', FB.where('dniPadre','==',dni));
   if(!hijos.length){c.innerHTML='<div style="font-size:12px;color:var(--rojo);background:#ffe8e8;padding:8px;border-radius:8px;">❌ Sin estudiantes con ese DNI</div>';return;}
   const fecha=getFecha();
-  const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
+  const asist=_asistenciaHoyCache?.length?_asistenciaHoyCache:await fsQuery('asistencia',FB.where('fecha','==',fecha));
+  if(!_asistenciaHoyCache?.length) _asistenciaHoyCache=asist;
   const estadoMapDNI={}; asist.forEach(a=>{estadoMapDNI[a.estudianteId]=a.estado;});
   c.innerHTML=hijos.map(e=>{
     const est=estadoMapDNI[e.id];
@@ -2806,9 +2811,19 @@ async function generarReporte() {
       const d = rParseDate(a.fecha); return d && d >= fiDate && d <= ffDate;
     });
   } else {
-    // Muchos alumnos: traer toda la asistencia y filtrar en memoria
-    const todaAsist = await fsGetAll('asistencia');
-    asistFilt = todaAsist.filter(a => {
+    // Muchos alumnos: query por rango de fechas (evita descargar todo el historial)
+    // Convertir fechas PE (DD/MM/AAAA) a ISO para comparar con Firestore
+    const fiISO = fiPE.split('/').reverse().join('-'); // AAAA-MM-DD
+    const ffISO = ffPE.split('/').reverse().join('-');
+    const snap = await FB.getDocs(
+      FB.query(
+        FB.collection(FB.db, 'asistencia'),
+        FB.where('fecha', '>=', fiISO <= fiPE ? fiPE : fiISO),
+        FB.where('fecha', '<=', ffISO <= ffPE ? ffPE : ffISO)
+      )
+    );
+    const rango = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    asistFilt = rango.filter(a => {
       if(!estIds.has(a.estudianteId)) return false;
       const d = rParseDate(a.fecha); return d && d >= fiDate && d <= ffDate;
     });
@@ -2933,15 +2948,26 @@ async function rCargarDatos() {
   const fiDate = rParseDate(fiPE), ffDate = rParseDate(ffPE);
   const grado   = document.getElementById('rGrado')?.value||'';
   const seccion = document.getElementById('rSeccion')?.value||'';
-  let estudiantes = await fsGetAll('estudiantes');
+  let estudiantes = _estudiantesCache.length ? _estudiantesCache : await fsGetAll('estudiantes');
+  if (!_estudiantesCache.length) _estudiantesCache = estudiantes;
   if(sesion?.grados?.length)    estudiantes=estudiantes.filter(e=>sesion.grados.includes(e.grado));
   if(sesion?.secciones?.length) estudiantes=estudiantes.filter(e=>sesion.secciones.includes(e.seccion));
   if(grado)   estudiantes=estudiantes.filter(e=>e.grado===grado);
   if(seccion) estudiantes=estudiantes.filter(e=>e.seccion===seccion);
   const estIds = new Set(estudiantes.map(e=>e.id));
   const filtro = a => { const d=rParseDate(a.fecha); return d && d>=fiDate && d<=ffDate && estIds.has(a.estudianteId); };
-  const asistencias = (await fsGetAll('asistencia')).filter(filtro);
-  const justifs     = (await fsGetAll('justificaciones')).filter(a=>{ const d=rParseDate(a.fecha); return d&&d>=fiDate&&d<=ffDate&&estIds.has(a.estudianteId); });
+  // Query filtrada por rango de fechas — evita descargar todo el historial de asistencia
+  const _snapExport = await FB.getDocs(
+    FB.query(
+      FB.collection(FB.db, 'asistencia'),
+      FB.where('fecha', '>=', fiPE),
+      FB.where('fecha', '<=', ffPE)
+    )
+  );
+  const asistencias = _snapExport.docs.map(d => ({ id: d.id, ...d.data() })).filter(filtro);
+  const _allJustifs = _justificacionesCache?.length ? _justificacionesCache : await fsGetAll('justificaciones');
+  if (!_justificacionesCache?.length) _justificacionesCache = _allJustifs;
+  const justifs = _allJustifs.filter(a=>{ const d=rParseDate(a.fecha); return d&&d>=fiDate&&d<=ffDate&&estIds.has(a.estudianteId); });
   return { estudiantes, asistencias, justifs, fi, ff };
 }
 
@@ -3081,7 +3107,8 @@ function reporteIndividual(estudianteId) {
 
 
 async function renderListaUsuarios() {
-  const usuarios=await fsGetAll('usuarios');
+  const usuarios = _usuariosCache.length ? _usuariosCache : await fsGetAll('usuarios');
+  if (!_usuariosCache.length) _usuariosCache = usuarios;
   const c=document.getElementById('listaUsuarios'); if(!c) return;
   const rolTag={admin:'role-tag-admin',auxiliar:'role-tag-auxiliar',tutor:'role-tag-tutor',profesor:'role-tag-tutor'};
   const rolLabel={admin:'👑 Admin',auxiliar:'🛡️ Auxiliar',tutor:'📖 Tutor',profesor:'🧑‍🏫 Profesor'};
@@ -3146,6 +3173,7 @@ async function guardarUsuario() {
     btn.disabled=true; btn.textContent='⏳ Guardando…';
     try {
       await FB.setDoc(FB.doc(FB.db,'usuarios',editandoUsuarioId),{nombre,email,rol,grados,secciones},{merge:true});
+      _usuariosCache = []; // invalidar caché
       notif(`✅ Usuario "${nombre}" actualizado correctamente`,'success');
       cerrarModalUsuario(); renderListaUsuarios();
     } catch(e) {
@@ -3167,6 +3195,7 @@ async function guardarUsuario() {
     await FB.setDoc(FB.doc(FB.db,'usuarios',cred.user.uid),{nombre,email,rol,grados,secciones,creadoEn:FB.serverTimestamp()});
     await FB.signInWithEmailAndPassword(FB.auth,adminEmail,adminPass);
     _ignorarAuthChange=false;
+    _usuariosCache = []; // invalidar caché
     notif(`✅ Usuario "${nombre}" creado correctamente`,'success');
     cerrarModalUsuario(); renderListaUsuarios();
   } catch(e) {
@@ -3187,6 +3216,7 @@ async function guardarUsuario() {
 async function eliminarUsuario(uid, email) {
   if(!confirm(`¿Eliminar usuario ${email}?\n\nNOTA: El perfil será eliminado del sistema, pero la cuenta de acceso seguirá existiendo en Firebase Auth. El usuario no podrá ingresar porque su perfil no existirá.`)) return;
   await fsDelete('usuarios',uid);
+  _usuariosCache = []; // invalidar caché
   renderListaUsuarios(); notif('🗑 Usuario eliminado del sistema','info');
 }
 
@@ -3221,8 +3251,8 @@ async function iniciarCamara() {
   }
   detenerCamara();
   try {
-    try{scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{exact:facingMode}}});}
-    catch{scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode}});}
+    try{scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{exact:facingMode},width:{ideal:640},height:{ideal:480}}});}
+    catch{scannerStream=await navigator.mediaDevices.getUserMedia({video:{facingMode,width:{ideal:640},height:{ideal:480}}});}
     const v=document.getElementById('scannerVideo');
     v.srcObject=scannerStream;
     await new Promise(r=>{v.onloadedmetadata=r;v.play().catch(()=>{});setTimeout(r,3000);});
@@ -3253,10 +3283,10 @@ function tickScan() {
   if(!escaneando) return;
   const v=document.getElementById('scannerVideo');
   if(!v||v.readyState<2||v.videoWidth===0){scannerRaf=requestAnimationFrame(tickScan);return;}
-  scannerCanvas.width=v.videoWidth; scannerCanvas.height=v.videoHeight;
+  if(scannerCanvas.width!==v.videoWidth||scannerCanvas.height!==v.videoHeight){scannerCanvas.width=v.videoWidth;scannerCanvas.height=v.videoHeight;}
   scannerCtx.drawImage(v,0,0);
   let img; try{img=scannerCtx.getImageData(0,0,scannerCanvas.width,scannerCanvas.height);}catch{scannerRaf=requestAnimationFrame(tickScan);return;}
-  const code=jsQR(img.data,img.width,img.height,{inversionAttempts:'attemptBoth'});
+  const code=jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'});
   if(code&&code.data){
     escaneando=false;
     const flash=document.createElement('div');
@@ -3304,7 +3334,8 @@ async function procesarManual() {
   const c=document.getElementById('manualResultados');
   if(!found.length){c.innerHTML='<div style="color:var(--rojo);font-size:12px;margin-top:8px;">❌ No se encontró</div>';return;}
   const fecha=getFecha();
-  const asist=await fsQuery('asistencia',FB.where('fecha','==',fecha));
+  const asist=_asistenciaHoyCache?.length?_asistenciaHoyCache:await fsQuery('asistencia',FB.where('fecha','==',fecha));
+  if(!_asistenciaHoyCache?.length) _asistenciaHoyCache=asist;
   const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
   c.innerHTML=found.slice(0,8).map(e=>{
     const pres=presSet.has(e.id);
@@ -4214,32 +4245,45 @@ const EV_ASISTIO = new Set(['presente','puntual','tardanza','justificado']);
 const EV_PRESENTE = new Set(['presente','puntual','tardanza']); // sin justificado
 
 function evDetener() {
-  if (_evUnsubscribe) { _evUnsubscribe(); _evUnsubscribe = null; }
-  _evEstudiantes = []; // BUG3-FIX: limpiar caché al salir
+  // Ya no hay listener activo (getDocs puntual no necesita cancelarse)
+  _evEstudiantes = [];
   _evAsistencia  = [];
+  _evUnsubscribe = null;
   const badge = document.getElementById('enVivoBadge');
   if (badge) badge.style.display = 'none';
 }
 
 async function evIniciar() {
-  if (_evUnsubscribe) { evAplicarFiltro(); return; }
+  // Si ya hay datos en memoria, solo re-renderizar sin ir a Firestore
+  if (_evEstudiantes.length) { evAplicarFiltro(); return; }
+  await evRecargar();
+}
 
+// Carga puntual con getDocs — sin listener en tiempo real para ahorrar lecturas
+async function evRecargar() {
   const badge = document.getElementById('enVivoBadge');
   if (badge) badge.style.display = '';
 
-  // Siempre recarga estudiantes al abrir (datos frescos)
-  _evEstudiantes = await fsGetAll('estudiantes'); // BUG3-FIX: no reusar caché sucia
+  // Reusar caché de estudiantes si ya fue cargada en esta sesión
+  if (!_evEstudiantes.length) {
+    _evEstudiantes = _estudiantesCache.length
+      ? [..._estudiantesCache]
+      : await fsGetAll('estudiantes');
+    if (!_estudiantesCache.length) _estudiantesCache = [..._evEstudiantes];
+  }
 
   const fecha = getFecha();
-  const q = FB.query(
-    FB.collection(FB.db, 'asistencia'),
-    FB.where('fecha', '==', fecha)
-  );
-
-  _evUnsubscribe = FB.onSnapshot(q, (snap) => {
+  // Reusar caché de asistencia del día si existe
+  if (_asistenciaHoyCache?.length) {
+    _evAsistencia = [..._asistenciaHoyCache];
+  } else {
+    const snap = await FB.getDocs(
+      FB.query(FB.collection(FB.db, 'asistencia'), FB.where('fecha', '==', fecha))
+    );
     _evAsistencia = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    evAplicarFiltro();
-  }, (err) => { console.error('onSnapshot error:', err); });
+    _asistenciaHoyCache = [..._evAsistencia];
+  }
+  evAplicarFiltro();
 }
 
 function evAplicarFiltro() {
