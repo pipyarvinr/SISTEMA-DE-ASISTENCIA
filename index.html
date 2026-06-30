@@ -1526,15 +1526,29 @@ async function cerrarSesion() {
   detenerCamara();
   sesion = null;
   _estudiantesCache = []; _asistenciaHoyCache = []; _justificacionesCache = []; _usuariosCache = [];
+  ['estudiantes','justificaciones','usuarios'].forEach(_fsCacheInvalidar);
   document.getElementById('appLayout').style.display = 'none';
   document.getElementById('timerBanner').style.display = '';
   try { await FB.signOut(FB.auth); } catch(e) {}
   document.getElementById('loginScreen').style.display = 'flex';
 }
 
+const FS_CACHE_TTL = 10 * 60 * 1000; // 10 min — sobrevive a recargas de página (F5)
+function _fsCacheInvalidar(col) {
+  try { sessionStorage.removeItem('fsCache_' + col); } catch(_) {}
+}
 async function fsGetAll(col) {
+  try {
+    const raw = sessionStorage.getItem('fsCache_' + col);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Date.now() - parsed.ts < FS_CACHE_TTL) return parsed.data;
+    }
+  } catch(_) {}
   const snap = await FB.getDocs(FB.collection(FB.db, col));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  try { sessionStorage.setItem('fsCache_' + col, JSON.stringify({ ts: Date.now(), data })); } catch(_) {}
+  return data;
 }
 async function fsAdd(col, data) {
   const ref = await FB.addDoc(FB.collection(FB.db, col), { ...data, _ts: FB.serverTimestamp() });
@@ -1664,6 +1678,7 @@ async function agregarEstudiante() {
   if (!/^(\d{8}|[A-Za-z0-9]{9,12})$/.test(dniPadre)) { notif('❌ DNI o carnet de extranjería inválido','error'); return; }
   try {
     await fsAdd('estudiantes',{ nombre, grado, seccion, dniPadre, telefono });
+    _estudiantesCache = []; _fsCacheInvalidar('estudiantes');
     notif('✅ Estudiante registrado en Firebase','success');
     document.getElementById('sNombre').value='';
     document.getElementById('sDNI').value='';
@@ -1737,6 +1752,7 @@ function generarQR(id, estudiante) {
 async function eliminarEstudiante(id) {
   if (!confirm('¿Eliminar este estudiante?')) return;
   await fsDelete('estudiantes', id);
+  _estudiantesCache = []; _fsCacheInvalidar('estudiantes');
   renderEstudiantes(); actualizarStats();
   notif('🗑 Estudiante eliminado','info');
 }
@@ -1764,6 +1780,7 @@ async function guardarEdicionEstudiante() {
   if (!/^(\d{8}|[A-Za-z0-9]{9,12})$/.test(dniPadre)) { notif('❌ DNI o carnet de extranjería inválido','error'); return; }
   try {
     await fsUpdate('estudiantes', id, { nombre, grado, seccion, dniPadre, telefono });
+    _estudiantesCache = []; _fsCacheInvalidar('estudiantes');
     document.getElementById('modalEditarEst').classList.remove('open');
     notif('✅ Estudiante actualizado correctamente','success');
     renderEstudiantes(); actualizarStats();
@@ -2608,6 +2625,7 @@ async function enviarJustificacion() {
   const e=await fsGet('estudiantes',justifEstudianteId);
   const justif={estudianteId:justifEstudianteId,nombre:e?.nombre||'',grado:e?.grado||'',seccion:e?.seccion||'',fecha,hora,motivo:motivoSel,detalle,evidencia:motivoSel!=='alerta'?(evidenciaBase64||null):null,estado:motivoSel==='alerta'?'alerta':'pendiente',telefono:e?.telefono||''};
   await fsAdd('justificaciones',justif);
+  _justificacionesCache = []; _fsCacheInvalidar('justificaciones');
   document.getElementById('modalJustif').classList.remove('open');
   if(motivoSel==='alerta'){notif('🚨 ALERTA enviada al tutor','error');}
   else{notif('⏳ Justificación enviada — en espera de aprobación del tutor','success');}
@@ -2685,6 +2703,7 @@ async function cambiarEstadoJustif(id, estado) {
   const fmtFecha=d=>d.toLocaleDateString('es-PE',{day:'2-digit',month:'2-digit',year:'numeric'});
   const fmtHora=d=>d.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'});
   await fsUpdate('justificaciones',id,{estado,validadoEn:ahora.toISOString(),venceEn:vence.toISOString(),validadoPor:sesion?.nombre||'Tutor'});
+  _justificacionesCache = []; _fsCacheInvalidar('justificaciones');
   notif(estado==='aprobado'?'✅ Aprobada':'❌ Rechazada',estado==='aprobado'?'success':'warning');
   if(estado==='aprobado'){
     const j=await fsGet('justificaciones',id);
@@ -3173,7 +3192,7 @@ async function guardarUsuario() {
     btn.disabled=true; btn.textContent='⏳ Guardando…';
     try {
       await FB.setDoc(FB.doc(FB.db,'usuarios',editandoUsuarioId),{nombre,email,rol,grados,secciones},{merge:true});
-      _usuariosCache = []; // invalidar caché
+      _usuariosCache = []; _fsCacheInvalidar('usuarios'); // invalidar caché
       notif(`✅ Usuario "${nombre}" actualizado correctamente`,'success');
       cerrarModalUsuario(); renderListaUsuarios();
     } catch(e) {
@@ -3195,7 +3214,7 @@ async function guardarUsuario() {
     await FB.setDoc(FB.doc(FB.db,'usuarios',cred.user.uid),{nombre,email,rol,grados,secciones,creadoEn:FB.serverTimestamp()});
     await FB.signInWithEmailAndPassword(FB.auth,adminEmail,adminPass);
     _ignorarAuthChange=false;
-    _usuariosCache = []; // invalidar caché
+    _usuariosCache = []; _fsCacheInvalidar('usuarios'); // invalidar caché
     notif(`✅ Usuario "${nombre}" creado correctamente`,'success');
     cerrarModalUsuario(); renderListaUsuarios();
   } catch(e) {
@@ -3216,7 +3235,7 @@ async function guardarUsuario() {
 async function eliminarUsuario(uid, email) {
   if(!confirm(`¿Eliminar usuario ${email}?\n\nNOTA: El perfil será eliminado del sistema, pero la cuenta de acceso seguirá existiendo en Firebase Auth. El usuario no podrá ingresar porque su perfil no existirá.`)) return;
   await fsDelete('usuarios',uid);
-  _usuariosCache = []; // invalidar caché
+  _usuariosCache = []; _fsCacheInvalidar('usuarios'); // invalidar caché
   renderListaUsuarios(); notif('🗑 Usuario eliminado del sistema','info');
 }
 
@@ -4186,7 +4205,7 @@ async function importProcesar() {
       progreso.innerHTML = `<div style="font-size:13px;color:var(--texto-suave);">⏳ Importando ${i+1} de ${rows.length}...</div>`;
     }
     // Limpiar caché para que recargue
-    _estudiantesCache = [];
+    _estudiantesCache = []; _fsCacheInvalidar('estudiantes');
     progreso.innerHTML = `<div style="background:#e8f5e9;border:1px solid #2e7d32;border-radius:8px;padding:10px 12px;font-size:13px;color:#2e7d32;font-weight:600;">
       ✅ Importación completada<br>
       <span style="font-weight:400;">✓ ${ok} agregados · ⚠️ ${duplicados} duplicados omitidos · ❌ ${errores} errores</span>
