@@ -1327,6 +1327,25 @@ let _justificacionesCache = [];
 let _usuariosCache = [];
 let _padreUnsubscribes = []; // listeners tiempo real asistencia padre
 
+// FIX-DUPLICADOS: si por caché desincronizada entre dispositivos quedaron 2 registros
+// para el mismo estudiante+fecha (ej. 'puntual' + 'ausente' fantasma), nos quedamos
+// con el mejor estado y descartamos el resto. Prioridad: puntual/presente/tardanza/justificado > ausente.
+function _dedupeAsistencia(lista) {
+  const mejor = new Map(); // key: estudianteId+fecha -> registro elegido
+  for (const a of lista) {
+    const key = a.estudianteId + '|' + a.fecha;
+    const actual = mejor.get(key);
+    if (!actual) { mejor.set(key, a); continue; }
+    // Si el que ya tenemos es 'ausente' y el nuevo no lo es, el nuevo gana
+    if (actual.estado === 'ausente' && a.estado !== 'ausente') { mejor.set(key, a); continue; }
+    // Si el nuevo es 'ausente' y el que ya tenemos no lo es, se ignora el nuevo
+    if (a.estado === 'ausente' && actual.estado !== 'ausente') continue;
+    // Ambos iguales de "categoría": nos quedamos con el más reciente por hora si existe
+    if (a.hora && actual.hora && a.hora > actual.hora) mejor.set(key, a);
+  }
+  return [...mejor.values()];
+}
+
 let _ignorarAuthChange = false;
 
 function _iniciarApp(fb) {
@@ -1645,8 +1664,11 @@ async function finalizarYMarcarAusentes() {
       if (sesion?.secciones?.length) todos = todos.filter(e=>sesion.secciones.includes(e.seccion));
     }
     const fecha = getFecha();
-    const asist = _asistenciaHoyCache?.length ? _asistenciaHoyCache : await fsQuery('asistencia', FB.where('fecha','==',fecha));
-    if (!_asistenciaHoyCache?.length) _asistenciaHoyCache = asist;
+    // FIX-DUPLICADOS: esta acción es crítica y poco frecuente — jamás usar caché local
+    // (que puede estar desactualizado si otro dispositivo registró asistencia después),
+    // porque generaba registros 'ausente' duplicados para alumnos que ya tenían 'puntual'.
+    const asist = await fsQuery('asistencia', FB.where('fecha','==',fecha));
+    _asistenciaHoyCache = asist;
     const conRegistro = new Set(asist.map(a=>a.estudianteId));
     const sinRegistro = todos.filter(e=>!conRegistro.has(e.id));
     if(!sinRegistro.length){ notif('✅ Todos los estudiantes ya tienen registro hoy','success'); return; }
@@ -2259,7 +2281,7 @@ async function renderHijosInfo(hijos) {
       try {
         // Una sola consulta por hijo trae las últimas 2 semanas
         const r=await fsQuery('asistencia',FB.where('estudianteId','==',h.id));
-        const rFiltrado=r.filter(a=>ultimas2Semanas.includes(a.fecha));
+        const rFiltrado=_dedupeAsistencia(r.filter(a=>ultimas2Semanas.includes(a.fecha)));
         asistSemana.push(...rFiltrado);
         const hoy_reg=rFiltrado.find(a=>a.fecha===fecha);
         if(hoy_reg){ if(hoy_reg.estado==='ausente') ausenteSet.add(h.id); else if(hoy_reg.estado==='tardanza') tardSet.set(h.id,hoy_reg.hora||''); else if(hoy_reg.estado==='puntual'||hoy_reg.estado==='presente'||hoy_reg.estado==='justificado') presSet.add(h.id); }
@@ -2847,6 +2869,10 @@ async function generarReporte() {
       const d = rParseDate(a.fecha); return d && d >= fiDate && d <= ffDate;
     });
   }
+
+  // FIX-DUPLICADOS: si un alumno quedó con 2 registros el mismo día (ej. 'puntual' + 'ausente'
+  // fantasma por caché desincronizada), nos quedamos con el registro correcto para todo el reporte.
+  asistFilt = _dedupeAsistencia(asistFilt);
 
   // Justificaciones: solo del rango usando cache
   const todasJustifs = _justificacionesCache?.length ? _justificacionesCache : await fsGetAll('justificaciones');
