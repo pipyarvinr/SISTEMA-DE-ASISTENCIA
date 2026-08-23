@@ -1312,6 +1312,8 @@ let scannerCanvas = null;
 let scannerCtx = null;
 let escaneando = false;
 let facingMode = 'environment';
+let _lastScanAttempt = 0;
+const SCAN_INTERVAL_MS = 120; // ~8 intentos de decodificación por segundo — suficiente para leer un QR sin saturar el procesador
 let justifEstudianteId = null;
 let motivoSel = null;
 let editandoUsuarioId = null;
@@ -1752,10 +1754,19 @@ async function renderEstudiantes() {
         <button class="btn btn-danger btn-sm" onclick="eliminarEstudiante('${e.id}')">🗑</button>
       </div>
     </div>`).join('');
-  // Generar todos los QRs de inmediato (no lazy) para que imprimirQR funcione correctamente
-  lista.forEach(e => {
-    generarQR(e.id, e);
-  });
+  // FIX-PERF: antes esto generaba las 743 QRs de forma síncrona en un solo
+  // bloque, congelando el hilo principal al entrar como admin. Ahora se
+  // generan en lotes pequeños, cediendo el control al navegador entre cada
+  // uno (mismo patrón de "lotes con pausa" que ya usa imprimirQR()).
+  _generarQRsProgresivo(lista);
+}
+
+async function _generarQRsProgresivo(lista) {
+  const LOTE = 15;
+  for (let i = 0; i < lista.length; i += LOTE) {
+    lista.slice(i, i + LOTE).forEach(e => generarQR(e.id, e));
+    await new Promise(r => setTimeout(r, 0)); // cede el hilo — deja respirar a la UI entre lotes
+  }
 }
 
 function generarQR(id, estudiante) {
@@ -2257,7 +2268,7 @@ async function renderHijosInfo(hijos) {
   }
   const cacheKey = 'padre_' + hijos.map(h=>h.id).join('_') + '_semana_' + fecha;
   const cached = sessionStorage.getItem(cacheKey);
-  const CACHE_TTL_HOY = 5 * 60 * 1000; // 5 minutos para datos de hoy
+  const CACHE_TTL_HOY = 60 * 1000; // 1 minuto — pocos documentos por familia, prioriza frescura sobre ahorro de lecturas
   let presSet=new Set(), ausenteSet=new Set(), tardSet=new Map(), justifs=[], asistSemana=[];
   let cacheValido = false;
   if (cached) {
@@ -2549,9 +2560,11 @@ async function renderHijosInfo(hijos) {
       ${incHtml}
     </div>`;
   }).join('');
-  // Listener tiempo real: solo asistencia de hoy por cada hijo
+  // Listener tiempo real: asistencia Y justificaciones de hoy, por cada hijo
   _padreUnsubscribes.forEach(fn=>fn()); _padreUnsubscribes=[];
   for(const h of hijos){
+    const ck='padre_'+hijos.map(x=>x.id).join('_')+'_semana_'+fecha;
+    const refrescar=()=>{ sessionStorage.removeItem(ck); renderHijosInfo(hijos); };
     try{
       const q=FB.query(FB.collection(FB.db,'asistencia'),FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha));
       let cargaInicial=true;
@@ -2560,13 +2573,27 @@ async function renderHijosInfo(hijos) {
         snap.docChanges().forEach(change=>{
           if(change.type==='modified'){
             // Solo reaccionar a cambios reales de estado (ej: ausente→puntual por justificación)
-            const ck='padre_'+hijos.map(x=>x.id).join('_')+'_semana_'+fecha;
-            sessionStorage.removeItem(ck);
-            renderHijosInfo(hijos);
+            refrescar();
           }
         });
       });
       _padreUnsubscribes.push(unsub);
+    }catch(e2){}
+    try{
+      // FIX: aprobar/rechazar una justificación NO modifica 'asistencia', solo 'justificaciones'.
+      // Sin este listener el padre nunca ve el cambio de estado hasta recargar la sesión.
+      const qJustif=FB.query(FB.collection(FB.db,'justificaciones'),FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha));
+      let cargaInicialJustif=true;
+      const unsubJustif=FB.onSnapshot(qJustif,snap=>{
+        if(cargaInicialJustif){ cargaInicialJustif=false; return; } // ignorar disparo inicial
+        snap.docChanges().forEach(change=>{
+          if(change.type==='modified'||change.type==='added'){
+            // modified: el tutor aprobó o rechazó · added: cubre el caso de otro dispositivo enviando la justificación
+            refrescar();
+          }
+        });
+      });
+      _padreUnsubscribes.push(unsubJustif);
     }catch(e2){}
   }
 }
@@ -2852,18 +2879,32 @@ async function generarReporte() {
       const d = rParseDate(a.fecha); return d && d >= fiDate && d <= ffDate;
     });
   } else {
-    // Muchos alumnos: query por rango de fechas (evita descargar todo el historial)
-    // Convertir fechas PE (DD/MM/AAAA) a ISO para comparar con Firestore
-    const fiISO = fiPE.split('/').reverse().join('-'); // AAAA-MM-DD
-    const ffISO = ffPE.split('/').reverse().join('-');
-    const snap = await FB.getDocs(
-      FB.query(
-        FB.collection(FB.db, 'asistencia'),
-        FB.where('fecha', '>=', fiISO <= fiPE ? fiPE : fiISO),
-        FB.where('fecha', '<=', ffISO <= ffPE ? ffPE : ffISO)
-      )
-    );
-    const rango = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // FIX: la consulta anterior comparaba 'fecha' (guardada como DD/MM/AAAA) con un
+    // rango ISO ("AAAA-MM-DD"), formatos incompatibles — nunca encontraba coincidencias
+    // y el reporte salía vacío para "todos los grados" (>40 estudiantes). Además, un
+    // rango >=/<= sobre DD/MM/AAAA nunca sería cronológicamente correcto de todas formas
+    // (el día va primero). Se reemplaza por consultas de coincidencia EXACTA ('in') sobre
+    // cada fecha del período, en lotes de 30 (límite de Firestore para 'in').
+    // getFecha() usa toLocaleDateString('es-PE'), que NO rellena con cero los días/meses
+    // de un dígito (ej. "5/1/2026", no "05/01/2026") — se generan ambas variantes por
+    // seguridad, sin asumir el formato exacto que use el navegador.
+    const fechasSet = new Set();
+    for (let d = new Date(fiDate); d <= ffDate; d.setDate(d.getDate() + 1)) {
+      const dia = d.getDate(), mes = d.getMonth() + 1, anio = d.getFullYear();
+      const diaP = String(dia).padStart(2, '0'), mesP = String(mes).padStart(2, '0');
+      fechasSet.add(`${dia}/${mes}/${anio}`);
+      fechasSet.add(`${diaP}/${mesP}/${anio}`);
+      fechasSet.add(`${diaP}/${mes}/${anio}`);
+      fechasSet.add(`${dia}/${mesP}/${anio}`);
+    }
+    const fechasRango = [...fechasSet];
+    const LOTE = 30;
+    const lotes = [];
+    for (let i = 0; i < fechasRango.length; i += LOTE) lotes.push(fechasRango.slice(i, i + LOTE));
+    const snaps = await Promise.all(lotes.map(lote =>
+      FB.getDocs(FB.query(FB.collection(FB.db, 'asistencia'), FB.where('fecha', 'in', lote)))
+    ));
+    const rango = snaps.flatMap(snap => snap.docs.map(d => ({ id: d.id, ...d.data() })));
     asistFilt = rango.filter(a => {
       if(!estIds.has(a.estudianteId)) return false;
       const d = rParseDate(a.fecha); return d && d >= fiDate && d <= ffDate;
@@ -3326,6 +3367,12 @@ function flipCam(){facingMode=facingMode==='environment'?'user':'environment';in
 
 function tickScan() {
   if(!escaneando) return;
+  // FIX-PERF: antes se intentaba decodificar en CADA frame de cámara (hasta 60/seg),
+  // saturando el procesador. Con ~8 intentos/seg sobra para leer un QR y baja mucho
+  // el consumo — esto es lo que causaba el lag durante el escaneo.
+  const ahoraTs = performance.now();
+  if (ahoraTs - _lastScanAttempt < SCAN_INTERVAL_MS) { scannerRaf = requestAnimationFrame(tickScan); return; }
+  _lastScanAttempt = ahoraTs;
   const v=document.getElementById('scannerVideo');
   if(!v||v.readyState<2||v.videoWidth===0){scannerRaf=requestAnimationFrame(tickScan);return;}
   if(scannerCanvas.width!==v.videoWidth||scannerCanvas.height!==v.videoHeight){scannerCanvas.width=v.videoWidth;scannerCanvas.height=v.videoHeight;}
@@ -3338,8 +3385,12 @@ function tickScan() {
     Object.assign(flash.style,{position:'absolute',inset:'0',background:'rgba(39,174,96,.5)',borderRadius:'12px',pointerEvents:'none',animation:'fadeOut .7s ease forwards'});
     document.getElementById('scannerView').appendChild(flash);
     registrarAsistencia(code.data).then(ok=>{
-      if(ok) setTimeout(()=>cerrarScanner(),800);
-      else setTimeout(()=>{escaneando=true;tickScan();},3600);
+      // FIX-PERF: antes, si el registro era exitoso, se apagaba la cámara (cerrarScanner)
+      // y había que reabrirla para el siguiente estudiante — eso reiniciaba getUserMedia
+      // por cada escaneo, causando el parpadeo negro/verde y el "congelamiento" durante
+      // una entrada con muchos estudiantes seguidos. Ahora la cámara se queda encendida
+      // y solo se reanuda el escaneo; se cierra manualmente con ✕ al terminar el turno.
+      setTimeout(()=>{escaneando=true;tickScan();}, ok ? 1000 : 3600);
     });
     return;
   }
