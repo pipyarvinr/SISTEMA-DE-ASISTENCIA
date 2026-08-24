@@ -1314,9 +1314,11 @@ let escaneando = false;
 let facingMode = 'environment';
 let _lastScanAttempt = 0;
 const SCAN_INTERVAL_MS = 120; // ~8 intentos de decodificación por segundo — suficiente para leer un QR sin saturar el procesador
+let _usarBarcodeDetector = false; // FIX: BarcodeDetector nativo (Chrome/Android) decodifica en código nativo — mucho más rápido que jsQR en tablets de gama media
+let _barcodeDetector = null;
 let _lastCodeValue = null;
-let _lastCodeTime = 0;
-const CODE_COOLDOWN_MS = 4000; // ignora el mismo QR si se repite antes de este tiempo (tarjeta aún frente a la cámara)
+let _framesSinCodigo = 0;
+const FRAMES_SIN_CODIGO_RESET = 5; // ~5 intentos (con SCAN_INTERVAL_MS) sin ver ningún QR = tarjeta retirada
 let _scannerSessionId = 0; // se incrementa cada vez que se (re)inicia la cámara — invalida reanudaciones viejas pendientes
 let justifEstudianteId = null;
 let justifFechaSel = null;
@@ -3373,7 +3375,7 @@ function switchScanTab(tab) {
 async function iniciarCamara() {
   document.getElementById('scanStatus').textContent='Iniciando cámara…';
   document.getElementById('camErrorBox').style.display='none';
-  _lastCodeValue = null; _lastCodeTime = 0; // nueva sesión de escaneo, sin arrastrar el debounce anterior
+  _lastCodeValue = null; _framesSinCodigo = 0; // nueva sesión de escaneo, sin arrastrar el debounce anterior
   _scannerSessionId++; // FIX: invalida cualquier reanudación pendiente (setTimeout) de una sesión anterior
   // jsQR ya está cargado al inicio — no necesitamos cargarlo dinámicamente
   if(typeof jsQR === 'undefined') {
@@ -3393,6 +3395,17 @@ async function iniciarCamara() {
     await new Promise(r=>{v.onloadedmetadata=r;v.play().catch(()=>{});setTimeout(r,3000);});
     scannerCanvas=document.createElement('canvas');
     scannerCtx=scannerCanvas.getContext('2d',{willReadFrequently:true});
+    // FIX: si el navegador soporta BarcodeDetector nativo (Chrome/Android — caso de
+    // esta tablet), se usa en vez de jsQR: decodifica en código nativo del sistema
+    // en lugar de JavaScript puro, mucho más rápido en procesadores de gama media.
+    // Si no está disponible o falla, se sigue usando jsQR normalmente.
+    _usarBarcodeDetector = false;
+    if ('BarcodeDetector' in window) {
+      try {
+        _barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+        _usarBarcodeDetector = true;
+      } catch { _usarBarcodeDetector = false; }
+    }
     document.getElementById('scanStatus').textContent='🟢 Apunta al código QR del estudiante';
     escaneando=true; tickScan();
   } catch(err) {
@@ -3414,7 +3427,7 @@ function detenerCamara() {
 
 function flipCam(){facingMode=facingMode==='environment'?'user':'environment';iniciarCamara();}
 
-function tickScan() {
+async function tickScan() {
   if(!escaneando) return;
   // FIX-PERF: antes se intentaba decodificar en CADA frame de cámara (hasta 60/seg),
   // saturando el procesador. Con ~8 intentos/seg sobra para leer un QR y baja mucho
@@ -3424,43 +3437,63 @@ function tickScan() {
   _lastScanAttempt = ahoraTs;
   const v=document.getElementById('scannerVideo');
   if(!v||v.readyState<2||v.videoWidth===0){scannerRaf=requestAnimationFrame(tickScan);return;}
-  if(scannerCanvas.width!==v.videoWidth||scannerCanvas.height!==v.videoHeight){scannerCanvas.width=v.videoWidth;scannerCanvas.height=v.videoHeight;}
-  scannerCtx.drawImage(v,0,0);
-  let img; try{img=scannerCtx.getImageData(0,0,scannerCanvas.width,scannerCanvas.height);}catch{scannerRaf=requestAnimationFrame(tickScan);return;}
-  const code=jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'});
-  if(code&&code.data){
-    // FIX: con la cámara encendida todo el tiempo, si la tarjeta del estudiante
-    // sigue frente a la cámara cuando se reanuda el escaneo, se volvía a leer el
-    // MISMO código y disparaba "ya fue registrado" en bucle — eso es lo que se
-    // sentía como lentitud. Se ignora el mismo código si se repite muy pronto.
-    const ahoraCodTs = performance.now();
-    if (code.data === _lastCodeValue && (ahoraCodTs - _lastCodeTime) < CODE_COOLDOWN_MS) {
-      scannerRaf=requestAnimationFrame(tickScan);
-      return;
+
+  let dato = null;
+  if (_usarBarcodeDetector) {
+    // FIX: BarcodeDetector nativo lee directo del <video>, sin pasar por canvas —
+    // decodifica en código nativo del sistema (mucho más rápido que jsQR en JS puro).
+    try {
+      const resultados = await _barcodeDetector.detect(v);
+      if (resultados.length) dato = resultados[0].rawValue;
+    } catch {
+      _usarBarcodeDetector = false; // si falla en tiempo real, se cae a jsQR desde el próximo frame
     }
-    _lastCodeValue = code.data;
-    _lastCodeTime = ahoraCodTs;
-    escaneando=false;
-    const miSesionEscaneo = _scannerSessionId; // FIX: validar antes de reanudar (ver iniciarCamara)
-    const flash=document.createElement('div');
-    Object.assign(flash.style,{position:'absolute',inset:'0',background:'rgba(39,174,96,.5)',borderRadius:'12px',pointerEvents:'none',animation:'fadeOut .7s ease forwards'});
-    document.getElementById('scannerView').appendChild(flash);
-    registrarAsistencia(code.data).then(ok=>{
-      // El debounce por código (arriba) ya protege contra re-registrar la misma
-      // tarjeta mientras sigue frente a la cámara, así que ya no hace falta
-      // forzar una espera larga — se reanuda pronto para el siguiente estudiante.
-      setTimeout(()=>{
-        // FIX: si la cámara se reinició (flipCam, cerrar/reabrir, cambio de pestaña)
-        // mientras esperábamos estos 500ms, esta reanudación es de una sesión vieja:
-        // no reactivar, porque la nueva sesión ya tiene su propio loop corriendo y
-        // esto generaba DOS loops leyendo la misma tarjeta -> registro duplicado
-        // "al instante".
-        if (_scannerSessionId !== miSesionEscaneo) return;
-        escaneando=true;tickScan();
-      }, 500);
-    });
+  }
+  if (!_usarBarcodeDetector) {
+    if(scannerCanvas.width!==v.videoWidth||scannerCanvas.height!==v.videoHeight){scannerCanvas.width=v.videoWidth;scannerCanvas.height=v.videoHeight;}
+    scannerCtx.drawImage(v,0,0);
+    // FIX-PERF: en vez de decodificar el frame completo, se recorta al cuadro
+    // central (70%) donde se espera el QR — menos píxeles = jsQR más rápido,
+    // notable en procesadores de gama media como el de esta tablet.
+    const lado = Math.round(Math.min(scannerCanvas.width, scannerCanvas.height) * 0.7);
+    const roiX = Math.round((scannerCanvas.width - lado) / 2);
+    const roiY = Math.round((scannerCanvas.height - lado) / 2);
+    let img;
+    try{img=scannerCtx.getImageData(roiX, roiY, lado, lado);}catch{scannerRaf=requestAnimationFrame(tickScan);return;}
+    const code=jsQR(img.data,img.width,img.height,{inversionAttempts:'dontInvert'});
+    if (code && code.data) dato = code.data;
+  }
+
+  if(!dato){
+    // FIX: si el QR desaparece del cuadro varios intentos seguidos, se asume que
+    // la tarjeta fue retirada y se libera _lastCodeValue — así, si ese mismo
+    // estudiante vuelve a pasar su QR más tarde, se puede volver a leer.
+    _framesSinCodigo++;
+    if (_framesSinCodigo >= FRAMES_SIN_CODIGO_RESET) _lastCodeValue = null;
+    scannerRaf=requestAnimationFrame(tickScan);
     return;
   }
+  _framesSinCodigo = 0;
+
+  if (dato === _lastCodeValue) {
+    // FIX: es la MISMA tarjeta que ya se registró y todavía sigue frente a la
+    // cámara (el estudiante no la retiró aún). Se ignora en silencio, sin
+    // pausar el escaneo ni mostrar ningún aviso — en cuanto aparezca el QR de
+    // otro estudiante, se lee de inmediato, sin ninguna demora.
+    scannerRaf=requestAnimationFrame(tickScan);
+    return;
+  }
+  _lastCodeValue = dato;
+
+  const flash=document.createElement('div');
+  Object.assign(flash.style,{position:'absolute',inset:'0',background:'rgba(39,174,96,.5)',borderRadius:'12px',pointerEvents:'none',animation:'fadeOut .7s ease forwards'});
+  document.getElementById('scannerView').appendChild(flash);
+  // FIX: ya no se espera (await) la respuesta de red antes de seguir escaneando.
+  // El chequeo de arriba (código igual al anterior) es el que evita re-registrar
+  // la misma tarjeta, así que la cámara puede seguir leyendo de inmediato sin
+  // pausas artificiales — esto es lo que generaba la demora al pasar al
+  // siguiente QR.
+  registrarAsistencia(dato);
   scannerRaf=requestAnimationFrame(tickScan);
 }
 
