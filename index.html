@@ -1315,6 +1315,7 @@ let facingMode = 'environment';
 let _lastScanAttempt = 0;
 const SCAN_INTERVAL_MS = 120; // ~8 intentos de decodificación por segundo — suficiente para leer un QR sin saturar el procesador
 let justifEstudianteId = null;
+let justifFechaSel = null;
 let motivoSel = null;
 let editandoUsuarioId = null;
 let evidenciaBase64 = null;
@@ -2299,7 +2300,7 @@ async function renderHijosInfo(hijos) {
       } catch(e2){}
     }
     for(const h of hijos) {
-      try { const r=await fsQuery('justificaciones',FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha)); justifs.push(...r); } catch(e2){}
+      try { const r=await fsQuery('justificaciones',FB.where('estudianteId','==',h.id),FB.where('fecha','in',ultimas2Semanas)); justifs.push(...r); } catch(e2){}
     }
     try {
       sessionStorage.setItem(cacheKey, JSON.stringify({
@@ -2540,6 +2541,26 @@ async function renderHijosInfo(hijos) {
         </div>`;
       }).join('')}
     </div>` : '';
+    // — Faltas de días anteriores de esta semana, aún sin justificar —
+    // (el flujo de "hoy" ya se maneja arriba con ausenteReg/botones; esto cubre Lun-Vie salvo hoy)
+    const diasLabelCorto=['Lunes','Martes','Miércoles','Jueves','Viernes'];
+    const pendientesSemana=ultimas2Semanas.map((f,idx)=>({f,idx})).filter(({f})=>{
+      if(f===fecha) return false; // hoy tiene su propio flujo, no duplicar aquí
+      const partes=f.split('/');
+      const dFecha=new Date(parseInt(partes[2]),parseInt(partes[1])-1,parseInt(partes[0]),12,0,0);
+      if(dFecha>hoy) return false; // día futuro de la semana, no aplica todavía
+      if(asistMap[f]!=='ausente') return false; // solo si ese día quedó como ausente
+      const yaJustif=justifs.find(j=>j.estudianteId===h.id&&j.fecha===f);
+      return !yaJustif; // si ya hay justificación (pendiente/aprobada/rechazada), no repetir el botón
+    });
+    const pendientesSemanaHtml=pendientesSemana.length?`<div style="margin-top:10px;background:#fff8e1;border:2px solid #f39c12;border-radius:10px;padding:12px;">
+      <div style="font-weight:700;color:#784212;font-size:13px;margin-bottom:8px;">⚠️ Falta${pendientesSemana.length>1?'s':''} de esta semana sin justificar</div>
+      ${pendientesSemana.map(({f,idx})=>`<div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border-radius:8px;padding:8px 10px;margin-bottom:6px;">
+        <span style="font-size:12px;color:#555;font-weight:600;">${diasLabelCorto[idx]} ${f}</span>
+        <button class="btn btn-orange" style="padding:5px 12px;font-size:12px;" onclick="abrirJustif('${h.id}','${f}')">📝 Justificar</button>
+      </div>`).join('')}
+      <div style="font-size:10px;color:#a04000;margin-top:4px;">Solo se pueden justificar días de esta misma semana.</div>
+    </div>`:'';
     return `<div class="hijo-card ${pres?'presente':tardeReg?'tardanza':ausenteReg?'ausente':''}">
       <div class="hijo-nombre">${h.nombre}</div>
       <div class="hijo-grado">${h.grado} — Sección ${h.seccion}</div>
@@ -2549,6 +2570,7 @@ async function renderHijosInfo(hijos) {
       ${compartirHtml}
       <div style="margin-top:4px;">${estadoHtml}</div>
       ${botones}
+      ${pendientesSemanaHtml}
       <div style="margin-top:14px;border-top:1px solid var(--borde);padding-top:12px;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <span style="font-size:10px;font-weight:700;color:var(--texto-suave);text-transform:uppercase;letter-spacing:.5px;">Semana actual</span>
@@ -2582,7 +2604,7 @@ async function renderHijosInfo(hijos) {
     try{
       // FIX: aprobar/rechazar una justificación NO modifica 'asistencia', solo 'justificaciones'.
       // Sin este listener el padre nunca ve el cambio de estado hasta recargar la sesión.
-      const qJustif=FB.query(FB.collection(FB.db,'justificaciones'),FB.where('estudianteId','==',h.id),FB.where('fecha','==',fecha));
+      const qJustif=FB.query(FB.collection(FB.db,'justificaciones'),FB.where('estudianteId','==',h.id),FB.where('fecha','in',ultimas2Semanas));
       let cargaInicialJustif=true;
       const unsubJustif=FB.onSnapshot(qJustif,snap=>{
         if(cargaInicialJustif){ cargaInicialJustif=false; return; } // ignorar disparo inicial
@@ -2616,10 +2638,11 @@ function cerrarSesionPadre() {
   try { if(FB?.auth?.currentUser) FB.signOut(FB.auth); } catch(_) {}
 }
 
-async function abrirJustif(estudianteId) {
-  justifEstudianteId = estudianteId; motivoSel=null; evidenciaBase64=null;
+async function abrirJustif(estudianteId, fecha) {
+  justifEstudianteId = estudianteId; justifFechaSel = fecha || getFecha(); motivoSel=null; evidenciaBase64=null;
   const e=await fsGet('estudiantes', estudianteId);
-  document.getElementById('justifEstudInfo').textContent=e?`Estudiante: ${e.nombre} — ${e.grado} "${e.seccion}"` : '';
+  const esHoy = justifFechaSel === getFecha();
+  document.getElementById('justifEstudInfo').textContent=e?`Estudiante: ${e.nombre} — ${e.grado} "${e.seccion}" — Falta del ${esHoy?'día de hoy':justifFechaSel}` : '';
   ['enfermedad','cita','familiar','otro','alerta'].forEach(m=>document.getElementById('mb_'+m)?.classList.remove('sel'));
   document.getElementById('detalleJustif').style.display='none';
   document.getElementById('alertaJustifMsg').style.display='none';
@@ -2627,6 +2650,7 @@ async function abrirJustif(estudianteId) {
   document.getElementById('evidenciaPreview').style.display='none';
   document.getElementById('evidenciaInput').value='';
   document.getElementById('btnEnviarJustif').disabled=true;
+  document.getElementById('mb_alerta').style.display = esHoy ? '' : 'none';
   document.getElementById('modalJustif').classList.add('open');
 }
 
@@ -2658,19 +2682,20 @@ async function enviarJustificacion() {
   if(!motivoSel||!justifEstudianteId) return;
   const detalle=document.getElementById('justifDetalle').value.trim();
   if(!detalle&&motivoSel!=='alerta'){notif('❌ La descripción es OBLIGATORIA','error');return;}
-  const fecha=getFecha(), hora=new Date().toLocaleTimeString('es-PE');
+  const fecha=justifFechaSel||getFecha(), hora=new Date().toLocaleTimeString('es-PE');
+  const esHoy=fecha===getFecha();
   // BUG #6 FIX: verificar que no esté ya marcado presente antes de guardar la justificación
   if(motivoSel!=='alerta'){
     const asistHoy=await fsQuery('asistencia',FB.where('estudianteId','==',justifEstudianteId),FB.where('fecha','==',fecha));
     if(asistHoy.length&&asistHoy[0].estado==='presente'){
-      notif('ℹ️ El estudiante ya está marcado como PRESENTE hoy. No se puede justificar.','warning');
+      notif(`ℹ️ El estudiante ya está marcado como PRESENTE ${esHoy?'hoy':'el '+fecha}. No se puede justificar.`,'warning');
       document.getElementById('modalJustif').classList.remove('open');
       return;
     }
   }
   // Verificar duplicado para cualquier tipo (justificación o alerta)
   const justifExist=await fsQuery('justificaciones',FB.where('estudianteId','==',justifEstudianteId),FB.where('fecha','==',fecha));
-  if(justifExist.length){notif('⚠️ Ya existe una justificación o alerta para este estudiante hoy.','warning');document.getElementById('modalJustif').classList.remove('open');return;}
+  if(justifExist.length){notif(`⚠️ Ya existe una justificación o alerta para este estudiante ${esHoy?'hoy':'el '+fecha}.`,'warning');document.getElementById('modalJustif').classList.remove('open');return;}
   const e=await fsGet('estudiantes',justifEstudianteId);
   const justif={estudianteId:justifEstudianteId,nombre:e?.nombre||'',grado:e?.grado||'',seccion:e?.seccion||'',fecha,hora,motivo:motivoSel,detalle,evidencia:motivoSel!=='alerta'?(evidenciaBase64||null):null,estado:motivoSel==='alerta'?'alerta':'pendiente',telefono:e?.telefono||''};
   await fsAdd('justificaciones',justif);
@@ -2756,7 +2781,21 @@ async function cambiarEstadoJustif(id, estado) {
   notif(estado==='aprobado'?'✅ Aprobada':'❌ Rechazada',estado==='aprobado'?'success':'warning');
   if(estado==='aprobado'){
     const j=await fsGet('justificaciones',id);
-    if(j) generarBoletaJustificacion(j,fmtFecha,fmtHora,ahora,vence);
+    if(j){
+      generarBoletaJustificacion(j,fmtFecha,fmtHora,ahora,vence);
+      // FIX: reflejar la aprobación en el registro de asistencia — antes se quedaba
+      // "ausente" para siempre en tablas y reportes aunque la justificación ya
+      // estuviera aprobada. Se busca el registro de ese día; si existe se actualiza
+      // a 'justificado', si no existe (nunca se marcó ausente explícitamente) se crea.
+      try {
+        const asistExist = await fsQuery('asistencia', FB.where('estudianteId','==',j.estudianteId), FB.where('fecha','==',j.fecha));
+        if (asistExist.length) {
+          await fsUpdate('asistencia', asistExist[0].id, { estado: 'justificado', justificadoPor: sesion?.nombre||'Tutor' });
+        } else {
+          await fsAdd('asistencia', { estudianteId: j.estudianteId, nombre: j.nombre, grado: j.grado, seccion: j.seccion, fecha: j.fecha, estado: 'justificado', justificadoPor: sesion?.nombre||'Tutor' });
+        }
+      } catch(e3) {}
+    }
   }
   renderJustificaciones(); renderAlertasBadge(); actualizarStats();
 }
