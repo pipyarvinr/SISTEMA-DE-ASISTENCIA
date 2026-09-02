@@ -1329,6 +1329,7 @@ let chartDia = null;
 let chartGrado = null;
 let _estudiantesCache = [];
 let _asistenciaHoyCache = [];
+let _asistenciaHoyCacheFecha = null;
 let _reporteEstudiantes = [];
 let _reporteAsistencias = [];
 let _reporteJustifs = [];
@@ -1601,7 +1602,12 @@ async function fsQuery(col, ...conditions) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-function getFecha() { return new Date().toLocaleDateString('es-PE'); }
+function getFecha() {
+  const f = new Date().toLocaleDateString('es-PE');
+  if (_asistenciaHoyCacheFecha !== null && _asistenciaHoyCacheFecha !== f) _asistenciaHoyCache = [];
+  _asistenciaHoyCacheFecha = f;
+  return f;
+}
 function actualizarFecha() {
   document.getElementById('topbarDate').textContent =
     new Date().toLocaleDateString('es-PE',{weekday:'short',year:'numeric',month:'short',day:'numeric'});
@@ -3532,7 +3538,7 @@ async function procesarManual() {
   const fecha=getFecha();
   const asist=_asistenciaHoyCache?.length?_asistenciaHoyCache:await fsQuery('asistencia',FB.where('fecha','==',fecha));
   if(!_asistenciaHoyCache?.length) _asistenciaHoyCache=asist;
-  const presSet=new Set(asist.filter(a=>a.estado!=='ausente').map(a=>a.estudianteId));
+  const presSet=new Set(asist.filter(a=>a.estado!=='ausente'&&a.fecha===fecha).map(a=>a.estudianteId));
   c.innerHTML=found.slice(0,8).map(e=>{
     const pres=presSet.has(e.id);
     const qrStr=JSON.stringify({id:e.id,nombre:e.nombre,grado:e.grado,seccion:e.seccion}).replace(/'/g,"\\'");
